@@ -1,0 +1,45 @@
+diff -rupN a/build-config.sub b/build-config.sub
+--- a/config.sub	2017-04-30 00:34:32.000000000 +0200
++++ b/config.sub	2017-10-10 21:22:40.599373437 +0200
+@@ -236,6 +236,10 @@
+ 	-psos*)
+ 		os=-psos
+ 		;;
++	-mintelf | -mintelf[0-9]*)
++		basic_machine=m68k-atari
++		os=-mintelf
++		;;
+ 	-mint | -mint[0-9]*)
+ 		basic_machine=m68k-atari
+ 		os=-mint
+@@ -825,6 +829,10 @@
+ 	miniframe)
+ 		basic_machine=m68000-convergent
+ 		;;
++	*mintelf | -mintelf[0-9]*)
++		basic_machine=m68k-atari
++		os=-mintelf
++		;;
+ 	*mint | -mint[0-9]* | *MiNT | *MiNT[0-9]*)
+ 		basic_machine=m68k-atari
+ 		os=-mint
+@@ -1517,6 +1525,9 @@
+ 	-xenix)
+ 		os=-xenix
+ 		;;
++	-*mintelf | -mintelf[0-9]*)
++		os=-mintelf
++		;;
+ 	-*mint | -mint[0-9]* | -*MiNT | -MiNT[0-9]*)
+ 		os=-mint
+ 		;;
+@@ -1791,6 +1802,9 @@
+ 			-mpw* | -macos*)
+ 				vendor=apple
+ 				;;
++			-*mintelf | -mintelf[0-9]*)
++				vendor=atari
++				;;
+ 			-*mint | -mint[0-9]* | -*MiNT | -MiNT[0-9]*)
+ 				vendor=atari
+ 				;;

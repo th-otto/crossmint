@@ -1,0 +1,4428 @@
+diff --git a/bfd/Makefile.am b/bfd/Makefile.am
+index 670e0598f55..118ed69f0b7 100644
+--- a/bfd/Makefile.am
++++ b/bfd/Makefile.am
+@@ -265,6 +265,7 @@ ALL_MACHINES_CFILES = \
+ BFD32_BACKENDS = \
+ 	aout-cris.lo \
+ 	aout-ns32k.lo \
++	aout0.lo \
+ 	aout32.lo \
+ 	cf-i386lynx.lo \
+ 	coff-go32.lo \
+@@ -382,6 +383,7 @@ BFD32_BACKENDS = \
+ 	peigen.lo \
+ 	plugin.lo \
+ 	ppcboot.lo \
++	prg-mint.lo \
+ 	reloc16.lo \
+ 	som.lo \
+ 	vax1knetbsd.lo \
+@@ -397,6 +399,7 @@ BFD32_BACKENDS = \
+ BFD32_BACKENDS_CFILES = \
+ 	aout-cris.c \
+ 	aout-ns32k.c \
++	aout0.c \
+ 	aout32.c \
+ 	cf-i386lynx.c \
+ 	coff-go32.c \
+@@ -513,6 +516,7 @@ BFD32_BACKENDS_CFILES = \
+ 	pei-sh.c \
+ 	plugin.c \
+ 	ppcboot.c \
++	prg-mint.c \
+ 	reloc16.c \
+ 	som.c \
+ 	vax1knetbsd.c \
+@@ -684,7 +688,7 @@ CFILES = $(SOURCE_CFILES) $(BUILD_CFILES)
+ ## This is a list of all .h files in the source tree minus those that
+ ## are processed to produce other .h files
+ SOURCE_HFILES = \
+-	aout-target.h aoutx.h arc-got.h arc-plt.h \
++	aout-target.h aoutf1.h aoutx.h arc-got.h arc-plt.h \
+ 	coff-arm.h coff-bfd.h coffcode.h coffswap.h \
+ 	cpu-aarch64.h cpu-arm.h cpu-h8300.h cpu-m68k.h cpu-riscv.h \
+ 	ecoff-bfd.h ecoffswap.h \
+@@ -978,11 +982,6 @@ bfdver.h: $(srcdir)/version.h $(srcdir)/development.sh $(srcdir)/Makefile.in
+ 	bfd_version_package="\"$(PKGVERSION)\"" ;\
+ 	report_bugs_to="\"$(REPORT_BUGS_TO)\"" ;\
+ 	. $(srcdir)/development.sh ;\
+-	if test "$$development" = true ; then \
+-	  bfd_version_date=`$(SED) -n -e 's/.*DATE //p' < $(srcdir)/version.h` ;\
+-	  bfd_version_string="\"$(VERSION).$${bfd_version_date}\"" ;\
+-	  bfd_soversion="$(VERSION).$${bfd_version_date}" ;\
+-	fi ;\
+ 	$(SED) -e "s,@bfd_version@,$$bfd_version," \
+ 	    -e "s,@bfd_version_string@,$$bfd_version_string," \
+ 	    -e "s,@bfd_version_package@,$$bfd_version_package," \
+diff --git a/bfd/Makefile.in b/bfd/Makefile.in
+index a26f74d7199..9094b84cf16 100644
+--- a/bfd/Makefile.in
++++ b/bfd/Makefile.in
+@@ -728,6 +728,7 @@ ALL_MACHINES_CFILES = \
+ BFD32_BACKENDS = \
+ 	aout-cris.lo \
+ 	aout-ns32k.lo \
++	aout0.lo \
+ 	aout32.lo \
+ 	cf-i386lynx.lo \
+ 	coff-go32.lo \
+@@ -845,6 +846,7 @@ BFD32_BACKENDS = \
+ 	peigen.lo \
+ 	plugin.lo \
+ 	ppcboot.lo \
++	prg-mint.lo \
+ 	reloc16.lo \
+ 	som.lo \
+ 	vax1knetbsd.lo \
+@@ -860,6 +862,7 @@ BFD32_BACKENDS = \
+ BFD32_BACKENDS_CFILES = \
+ 	aout-cris.c \
+ 	aout-ns32k.c \
++	aout0.c \
+ 	aout32.c \
+ 	cf-i386lynx.c \
+ 	coff-go32.c \
+@@ -976,6 +979,7 @@ BFD32_BACKENDS_CFILES = \
+ 	pei-sh.c \
+ 	plugin.c \
+ 	ppcboot.c \
++	prg-mint.c \
+ 	reloc16.c \
+ 	som.c \
+ 	vax1knetbsd.c \
+@@ -1144,7 +1148,7 @@ BUILD_CFILES = \
+ 
+ CFILES = $(SOURCE_CFILES) $(BUILD_CFILES)
+ SOURCE_HFILES = \
+-	aout-target.h aoutx.h arc-got.h arc-plt.h \
++	aout-target.h aoutf1.h aoutx.h arc-got.h arc-plt.h \
+ 	coff-arm.h coff-bfd.h coffcode.h coffswap.h \
+ 	cpu-aarch64.h cpu-arm.h cpu-h8300.h cpu-m68k.h cpu-riscv.h \
+ 	ecoff-bfd.h ecoffswap.h \
+@@ -1438,6 +1442,7 @@ distclean-compile:
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aix5ppc-core.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aout-cris.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aout-ns32k.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aout0.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aout32.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/aout64.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/archive.Plo@am__quote@
+@@ -1708,6 +1713,7 @@ distclean-compile:
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pex64igen.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/plugin.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ppcboot.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/prg-mint.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/reloc.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/reloc16.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rs6000-core.Plo@am__quote@
+@@ -2448,11 +2454,6 @@ bfdver.h: $(srcdir)/version.h $(srcdir)/development.sh $(srcdir)/Makefile.in
+ 	bfd_version_package="\"$(PKGVERSION)\"" ;\
+ 	report_bugs_to="\"$(REPORT_BUGS_TO)\"" ;\
+ 	. $(srcdir)/development.sh ;\
+-	if test "$$development" = true ; then \
+-	  bfd_version_date=`$(SED) -n -e 's/.*DATE //p' < $(srcdir)/version.h` ;\
+-	  bfd_version_string="\"$(VERSION).$${bfd_version_date}\"" ;\
+-	  bfd_soversion="$(VERSION).$${bfd_version_date}" ;\
+-	fi ;\
+ 	$(SED) -e "s,@bfd_version@,$$bfd_version," \
+ 	    -e "s,@bfd_version_string@,$$bfd_version_string," \
+ 	    -e "s,@bfd_version_package@,$$bfd_version_package," \
+diff --git a/bfd/acinclude.m4 b/bfd/acinclude.m4
+index 61a31ef4dd0..6fed06f8991 100644
+--- a/bfd/acinclude.m4
++++ b/bfd/acinclude.m4
+@@ -21,7 +21,7 @@ AC_DEFUN([BFD_BINARY_FOPEN],
+ [AC_REQUIRE([AC_CANONICAL_TARGET])
+ case "${host}" in
+ changequote(,)dnl
+-*-*-msdos* | *-*-go32* | *-*-mingw32* | *-*-cygwin* | *-*-windows*)
++*-*-msdos* | *-*-go32* | *-*-mingw32* | *-*-cygwin* | *-*-windows* | *-*-mint*)
+ changequote([,])dnl
+   AC_DEFINE(USE_BINARY_FOPEN, 1, [Use b modifier when opening binary files?]) ;;
+ esac])dnl
+diff --git a/bfd/aout0.c b/bfd/aout0.c
+new file mode 100644
+index 00000000000..890dce6de14
+--- /dev/null
++++ b/bfd/aout0.c
+@@ -0,0 +1,38 @@
++/* BFD backend for SunOS style a.out with flags set to 0
++   Copyright (C) 1990-2018 Free Software Foundation, Inc.
++   Written by Cygnus Support.
++
++   This file is part of BFD, the Binary File Descriptor library.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software
++   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
++   MA 02110-1301, USA.  */
++
++#define TARGETNAME "a.out-zero-big"
++
++/* Do not "beautify" the CONCAT* macro args.  Traditional C will not
++   remove whitespace added here, and thus will fail to concatenate
++   the tokens.  */
++#define MY(OP) CONCAT2 (aout0_be_,OP)
++
++#include "sysdep.h"
++#include "bfd.h"
++
++#define MY_exec_hdr_flags 0
++
++#define MACHTYPE_OK(mtype) \
++  ((mtype) == M_UNKNOWN || (mtype) == M_68010 || (mtype) == M_68020)
++
++/* Include the usual a.out support.  */
++#include "aoutf1.h"
+diff --git a/bfd/aoutf1.h b/bfd/aoutf1.h
+new file mode 100644
+index 00000000000..cf646e46e25
+--- /dev/null
++++ b/bfd/aoutf1.h
+@@ -0,0 +1,510 @@
++/* A.out "format 1" file handling code for BFD.
++   Copyright (C) 1990-2018 Free Software Foundation, Inc.
++   Written by Cygnus Support.
++
++   This file is part of BFD, the Binary File Descriptor library.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software
++   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
++   MA 02110-1301, USA.  */
++
++#include "sysdep.h"
++#include "bfd.h"
++#include "libbfd.h"
++
++#include "aout/sun4.h"
++#include "libaout.h"		/* BFD a.out internal data structures.  */
++
++#include "aout/aout64.h"
++#include "aout/stab_gnu.h"
++#include "aout/ar.h"
++
++/* This is needed to reject a NewsOS file, e.g. in
++   gdb/testsuite/gdb.t10/crossload.exp. <kingdon@cygnus.com>
++   I needed to add M_UNKNOWN to recognize a 68000 object, so this will
++   probably no longer reject a NewsOS object.  <ian@cygnus.com>.  */
++#ifndef MACHTYPE_OK
++#define MACHTYPE_OK(mtype) \
++  (((mtype) == M_SPARC && bfd_lookup_arch (bfd_arch_sparc, 0) != NULL) \
++   || (((mtype) == M_UNKNOWN || (mtype) == M_68010 || (mtype) == M_68020) \
++       && bfd_lookup_arch (bfd_arch_m68k, 0) != NULL))
++#endif
++
++/* The file @code{aoutf1.h} contains the code for BFD's
++   a.out back end.  Control over the generated back end is given by these
++   two preprocessor names:
++   @table @code
++   @item ARCH_SIZE
++   This value should be either 32 or 64, depending upon the size of an
++   int in the target format. It changes the sizes of the structs which
++   perform the memory/disk mapping of structures.
++
++   The 64 bit backend may only be used if the host compiler supports 64
++   ints (eg long long with gcc), by defining the name @code{BFD_HOST_64_BIT} in @code{bfd.h}.
++   With this name defined, @emph{all} bfd operations are performed with 64bit
++   arithmetic, not just those to a 64bit target.
++
++   @item TARGETNAME
++   The name put into the target vector.
++   @item
++   @end table.  */
++
++#if ARCH_SIZE == 64
++#define sunos_set_arch_mach sunos_64_set_arch_mach
++#define sunos_write_object_contents aout_64_sunos4_write_object_contents
++#else
++#define sunos_set_arch_mach sunos_32_set_arch_mach
++#define sunos_write_object_contents aout_32_sunos4_write_object_contents
++#endif
++
++/* Merge backend data into the output file.
++   This is necessary on sparclet-aout where we want the resultant machine
++   number to be M_SPARCLET if any input file is M_SPARCLET.  */
++
++#define MY_bfd_merge_private_bfd_data sunos_merge_private_bfd_data
++
++static bool
++sunos_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
++{
++  bfd *obfd = info->output_bfd;
++  if (bfd_get_flavour (ibfd) != bfd_target_aout_flavour
++      || bfd_get_flavour (obfd) != bfd_target_aout_flavour)
++    return true;
++
++  if (bfd_get_arch (obfd) == bfd_arch_sparc)
++    {
++      if (bfd_get_mach (obfd) < bfd_get_mach (ibfd))
++	bfd_set_arch_mach (obfd, bfd_arch_sparc, bfd_get_mach (ibfd));
++    }
++
++  return true;
++}
++
++/* This is either sunos_32_set_arch_mach or sunos_64_set_arch_mach,
++   depending upon ARCH_SIZE.  */
++
++static void
++sunos_set_arch_mach (bfd *abfd, enum machine_type machtype)
++{
++  /* Determine the architecture and machine type of the object file.  */
++  enum bfd_architecture arch;
++  unsigned long machine;
++
++  switch (machtype)
++    {
++    case M_UNKNOWN:
++      /* Some Sun3s make magic numbers without cpu types in them, so
++	 we'll default to the 68000.  */
++      arch = bfd_arch_m68k;
++      machine = bfd_mach_m68000;
++      break;
++
++    case M_68010:
++    case M_HP200:
++      arch = bfd_arch_m68k;
++      machine = bfd_mach_m68010;
++      break;
++
++    case M_68020:
++    case M_HP300:
++      arch = bfd_arch_m68k;
++      machine = bfd_mach_m68020;
++      break;
++
++    case M_SPARC:
++      arch = bfd_arch_sparc;
++      machine = 0;
++      break;
++
++    case M_SPARCLET:
++      arch = bfd_arch_sparc;
++      machine = bfd_mach_sparc_sparclet;
++      break;
++
++    case M_SPARCLITE_LE:
++      arch = bfd_arch_sparc;
++      machine = bfd_mach_sparc_sparclite_le;
++      break;
++
++    case M_386:
++    case M_386_DYNIX:
++      arch = bfd_arch_i386;
++      machine = 0;
++      break;
++
++    case M_HPUX:
++      arch = bfd_arch_m68k;
++      machine = 0;
++      break;
++
++    default:
++      arch = bfd_arch_obscure;
++      machine = 0;
++      break;
++    }
++  bfd_set_arch_mach (abfd, arch, machine);
++}
++
++#define SET_ARCH_MACH(ABFD, EXECP) \
++  NAME(sunos,set_arch_mach) (ABFD, N_MACHTYPE (EXECP)); \
++  choose_reloc_size(ABFD);
++
++/* Determine the size of a relocation entry, based on the architecture.  */
++
++static void
++choose_reloc_size (bfd *abfd)
++{
++  switch (bfd_get_arch (abfd))
++    {
++    case bfd_arch_sparc:
++      obj_reloc_entry_size (abfd) = RELOC_EXT_SIZE;
++      break;
++    default:
++      obj_reloc_entry_size (abfd) = RELOC_STD_SIZE;
++      break;
++    }
++}
++
++/* Write an object file in SunOS format.  Section contents have
++   already been written.  We write the file header, symbols, and
++   relocation.  The real name of this function is either
++   aout_64_sunos4_write_object_contents or
++   aout_32_sunos4_write_object_contents, depending upon ARCH_SIZE.  */
++
++static bool
++sunos_write_object_contents (bfd *abfd)
++{
++  struct external_exec exec_bytes;
++  struct internal_exec *execp = exec_hdr (abfd);
++
++  /* Magic number, maestro, please!  */
++  switch (bfd_get_arch (abfd))
++    {
++    case bfd_arch_m68k:
++      switch (bfd_get_mach (abfd))
++	{
++	case bfd_mach_m68000:
++	  N_SET_MACHTYPE (execp, M_UNKNOWN);
++	  break;
++	case bfd_mach_m68010:
++	  N_SET_MACHTYPE (execp, M_68010);
++	  break;
++	default:
++	case bfd_mach_m68020:
++	  N_SET_MACHTYPE (execp, M_68020);
++	  break;
++	}
++      break;
++    case bfd_arch_sparc:
++      switch (bfd_get_mach (abfd))
++	{
++	case bfd_mach_sparc_sparclet:
++	  N_SET_MACHTYPE (execp, M_SPARCLET);
++	  break;
++	case bfd_mach_sparc_sparclite_le:
++	  N_SET_MACHTYPE (execp, M_SPARCLITE_LE);
++	  break;
++	default:
++	  N_SET_MACHTYPE (execp, M_SPARC);
++	  break;
++	}
++      break;
++    case bfd_arch_i386:
++      N_SET_MACHTYPE (execp, M_386);
++      break;
++    default:
++      N_SET_MACHTYPE (execp, M_UNKNOWN);
++    }
++
++  choose_reloc_size (abfd);
++
++  N_SET_FLAGS (execp, aout_backend_info (abfd)->exec_hdr_flags);
++
++  N_SET_DYNAMIC (execp, (long)(bfd_get_file_flags (abfd) & DYNAMIC));
++
++  WRITE_HEADERS (abfd, execp);
++
++  return true;
++}
++
++/* Core files.  */
++
++#define CORE_MAGIC   0x080456
++#define CORE_NAMELEN 16
++
++/* The core structure is taken from the Sun documentation.
++  Unfortunately, they don't document the FPA structure, or at least I
++  can't find it easily.  Fortunately the core header contains its own
++  length.  So this shouldn't cause problems, except for c_ucode, which
++  so far we don't use but is easy to find with a little arithmetic.  */
++
++/* But the reg structure can be gotten from the SPARC processor handbook.
++  This really should be in a GNU include file though so that gdb can use
++  the same info.  */
++struct regs
++{
++  int r_psr;
++  int r_pc;
++  int r_npc;
++  int r_y;
++  int r_g1;
++  int r_g2;
++  int r_g3;
++  int r_g4;
++  int r_g5;
++  int r_g6;
++  int r_g7;
++  int r_o0;
++  int r_o1;
++  int r_o2;
++  int r_o3;
++  int r_o4;
++  int r_o5;
++  int r_o6;
++  int r_o7;
++};
++
++/* Taken from Sun documentation: */
++
++/* FIXME:  It's worse than we expect.  This struct contains TWO substructs
++  neither of whose size we know, WITH STUFF IN BETWEEN THEM!  We can't
++  even portably access the stuff in between!  */
++
++struct external_sparc_core
++{
++  int c_magic;				/* Corefile magic number.  */
++  int c_len;				/* Sizeof (struct core).  */
++#define	SPARC_CORE_LEN	432
++  struct regs c_regs;			/* General purpose registers -- MACHDEP SIZE.  */
++  struct external_exec c_aouthdr;	/* A.out header.  */
++  int c_signo;				/* Killing signal, if any.  */
++  int c_tsize;				/* Text size (bytes).  */
++  int c_dsize;				/* Data size (bytes).  */
++  int c_ssize;				/* Stack size (bytes).  */
++  char c_cmdname[CORE_NAMELEN + 1];	/* Command name.  */
++  double fp_stuff[1];			/* External FPU state (size unknown by us).  */
++  /* The type "double" is critical here, for alignment.
++     SunOS declares a struct here, but the struct's
++     alignment is double since it contains doubles.  */
++  int c_ucode;				/* Exception no. from u_code.  */
++  /* This member is not accessible by name since
++     we don't portably know the size of fp_stuff.  */
++};
++
++/* Core files generated by the BCP (the part of Solaris which allows
++   it to run SunOS4 a.out files).  */
++struct external_solaris_bcp_core
++{
++  int c_magic;				/* Corefile magic number.  */
++  int c_len;				/* Sizeof (struct core).  */
++#define	SOLARIS_BCP_CORE_LEN	456
++  struct regs c_regs;			/* General purpose registers -- MACHDEP SIZE.  */
++  int c_exdata_vp;			/* Exdata structure.  */
++  int c_exdata_tsize;
++  int c_exdata_dsize;
++  int c_exdata_bsize;
++  int c_exdata_lsize;
++  int c_exdata_nshlibs;
++  short c_exdata_mach;
++  short c_exdata_mag;
++  int c_exdata_toffset;
++  int c_exdata_doffset;
++  int c_exdata_loffset;
++  int c_exdata_txtorg;
++  int c_exdata_datorg;
++  int c_exdata_entloc;
++  int c_signo;				/* Killing signal, if any.  */
++  int c_tsize;				/* Text size (bytes).  */
++  int c_dsize;				/* Data size (bytes).  */
++  int c_ssize;				/* Stack size (bytes).  */
++  char c_cmdname[CORE_NAMELEN + 1];	/* Command name.  */
++  double fp_stuff[1];			/* External FPU state (size unknown by us).  */
++  /* The type "double" is critical here, for alignment.
++     SunOS declares a struct here, but the struct's
++     alignment is double since it contains doubles.  */
++  int c_ucode;				/* Exception no. from u_code.  */
++  /* This member is not accessible by name since
++     we don't portably know the size of fp_stuff.  */
++};
++
++struct external_sun3_core
++{
++  int c_magic;				/* Corefile magic number.  */
++  int c_len;				/* Sizeof (struct core).  */
++#define	SUN3_CORE_LEN	826		/* As of SunOS 4.1.1.  */
++  int c_regs[18];			/* General purpose registers -- MACHDEP SIZE.  */
++  struct external_exec c_aouthdr;	/* A.out header.  */
++  int c_signo;				/* Killing signal, if any.  */
++  int c_tsize;				/* Text size (bytes).  */
++  int c_dsize;				/* Data size (bytes).  */
++  int c_ssize;				/* Stack size (bytes).  */
++  char c_cmdname[CORE_NAMELEN + 1];	/* Command name.  */
++  double fp_stuff[1];			/* External FPU state (size unknown by us).  */
++  /* The type "double" is critical here, for alignment.
++     SunOS declares a struct here, but the struct's
++     alignment is double since it contains doubles.  */
++  int c_ucode;				/* Exception no. from u_code.  */
++  /* This member is not accessible by name since
++     we don't portably know the size of fp_stuff.  */
++};
++
++struct internal_sunos_core
++{
++  int c_magic;				/* Corefile magic number.  */
++  int c_len;				/* Sizeof (struct core).  */
++  long c_regs_pos;			/* File offset of General purpose registers.  */
++  int c_regs_size;			/* Size of General purpose registers.  */
++  struct internal_exec c_aouthdr;	/* A.out header.  */
++  int c_signo;				/* Killing signal, if any.  */
++  int c_tsize;				/* Text size (bytes).  */
++  int c_dsize;				/* Data size (bytes).  */
++  bfd_vma c_data_addr;			/* Data start (address).  */
++  int c_ssize;				/* Stack size (bytes).  */
++  bfd_vma c_stacktop;			/* Stack top (address).  */
++  char c_cmdname[CORE_NAMELEN + 1];	/* Command name.  */
++  long fp_stuff_pos;			/* File offset of external FPU state (regs).  */
++  int fp_stuff_size;			/* Size of it.  */
++  int c_ucode;				/* Exception no. from u_code.  */
++};
++
++/* Need this cast because ptr is really void *.  */
++#define core_hdr(bfd)      ((bfd)->tdata.sun_core_data)
++#define core_datasec(bfd)  (core_hdr (bfd)->data_section)
++#define core_stacksec(bfd) (core_hdr (bfd)->stack_section)
++#define core_regsec(bfd)   (core_hdr (bfd)->reg_section)
++#define core_reg2sec(bfd)  (core_hdr (bfd)->reg2_section)
++
++/* These are stored in the bfd's tdata.  */
++struct sun_core_struct
++{
++  struct internal_sunos_core *hdr;	/* Core file header.  */
++  asection *data_section;
++  asection *stack_section;
++  asection *reg_section;
++  asection *reg2_section;
++};
++
++static char *
++sunos4_core_file_failing_command (bfd *abfd)
++{
++  return core_hdr (abfd)->hdr->c_cmdname;
++}
++
++static int
++sunos4_core_file_failing_signal (bfd *abfd)
++{
++  return core_hdr (abfd)->hdr->c_signo;
++}
++
++static bool
++sunos4_core_file_matches_executable_p (bfd *core_bfd, bfd *exec_bfd)
++{
++  if (core_bfd->xvec != exec_bfd->xvec)
++    {
++      bfd_set_error (bfd_error_system_call);
++      return false;
++    }
++
++  /* Solaris core files do not include an aouthdr.  */
++  if ((core_hdr (core_bfd)->hdr)->c_len == SOLARIS_BCP_CORE_LEN)
++    return true;
++
++  return memcmp ((char *) &((core_hdr (core_bfd)->hdr)->c_aouthdr),
++		 (char *) exec_hdr (exec_bfd),
++		 sizeof (struct internal_exec)) == 0;
++}
++
++#define MY_set_sizes sunos4_set_sizes
++
++static bool
++sunos4_set_sizes (bfd *abfd)
++{
++  switch (bfd_get_arch (abfd))
++    {
++    default:
++      return false;
++    case bfd_arch_sparc:
++      adata (abfd).page_size = 0x2000;
++      adata (abfd).segment_size = 0x2000;
++      adata (abfd).exec_bytes_size = EXEC_BYTES_SIZE;
++      return true;
++    case bfd_arch_m68k:
++      adata (abfd).page_size = 0x2000;
++      adata (abfd).segment_size = 0x20000;
++      adata (abfd).exec_bytes_size = EXEC_BYTES_SIZE;
++      return true;
++    }
++}
++
++/* We default to setting the toolversion field to 1, as is required by
++   SunOS.  */
++#ifndef MY_exec_hdr_flags
++#define MY_exec_hdr_flags 1
++#endif
++
++#ifndef MY_entry_is_text_address
++#define MY_entry_is_text_address 0
++#endif
++#ifndef MY_add_dynamic_symbols
++#define MY_add_dynamic_symbols 0
++#endif
++#ifndef MY_add_one_symbol
++#define MY_add_one_symbol 0
++#endif
++#ifndef MY_link_dynamic_object
++#define MY_link_dynamic_object 0
++#endif
++#ifndef MY_write_dynamic_symbol
++#define MY_write_dynamic_symbol 0
++#endif
++#ifndef MY_check_dynamic_reloc
++#define MY_check_dynamic_reloc 0
++#endif
++#ifndef MY_finish_dynamic_link
++#define MY_finish_dynamic_link 0
++#endif
++
++static const struct aout_backend_data sunos4_aout_backend =
++{
++  0,				/* Zmagic files are not contiguous.  */
++  1,				/* Text includes header.  */
++  MY_entry_is_text_address,
++  MY_exec_hdr_flags,
++  0,				/* Default text vma.  */
++  sunos4_set_sizes,
++  0,				/* Header is counted in zmagic text.  */
++  MY_add_dynamic_symbols,
++  MY_add_one_symbol,
++  MY_link_dynamic_object,
++  MY_write_dynamic_symbol,
++  MY_check_dynamic_reloc,
++  MY_finish_dynamic_link
++};
++
++#define	MY_core_file_failing_command	sunos4_core_file_failing_command
++#define	MY_core_file_failing_signal	sunos4_core_file_failing_signal
++#define	MY_core_file_matches_executable_p sunos4_core_file_matches_executable_p
++
++#define MY_bfd_debug_info_start		_bfd_void_bfd
++#define MY_bfd_debug_info_end		_bfd_void_bfd
++#define MY_bfd_debug_info_accumulate	_bfd_void_bfd_asection
++#define MY_core_file_p			_bfd_dummy_target
++#define MY_write_object_contents	NAME(aout, sunos4_write_object_contents)
++#define MY_backend_data			& sunos4_aout_backend
++
++#ifndef TARGET_IS_LITTLE_ENDIAN_P
++#define TARGET_IS_BIG_ENDIAN_P
++#endif
++
++#include "aout-target.h"
+diff --git a/bfd/aoutx.h b/bfd/aoutx.h
+index e9b5188e8e7..dc608492e8f 100644
+--- a/bfd/aoutx.h
++++ b/bfd/aoutx.h
+@@ -480,7 +480,10 @@ NAME (aout, some_aout_object_p) (bfd *abfd,
+   oldrawptr = abfd->tdata.aout_data;
+   abfd->tdata.aout_data = rawptr;
+ 
+-  /* Copy the contents of the old tdata struct.  */
++  /* Copy the contents of the old tdata struct.
++     In particular, we want the subformat, since for hpux it was set in
++     hp300hpux.c:swap_exec_header_in and will be used in
++     hp300hpux.c:callback.  */
+   if (oldrawptr != NULL)
+     *abfd->tdata.aout_data = *oldrawptr;
+ 
+@@ -760,6 +763,17 @@ NAME (aout, machine_type) (enum bfd_architecture arch,
+ 	arch_flags = M_SPARCLET;
+       break;
+ 
++    case bfd_arch_m68k:
++      switch (machine)
++	{
++	case 0:		      arch_flags = M_68010; break;
++	case bfd_mach_m68000: arch_flags = M_UNKNOWN; *unknown = false; break;
++	case bfd_mach_m68010: arch_flags = M_68010; break;
++	case bfd_mach_m68020: arch_flags = M_68020; break;
++	default:	      arch_flags = M_UNKNOWN; break;
++	}
++      break;
++
+     case bfd_arch_i386:
+       if (machine == 0
+ 	  || machine == bfd_mach_i386_i386
+@@ -1284,6 +1298,8 @@ NAME (aout, set_section_contents) (bfd *abfd,
+ static bool
+ aout_get_external_symbols (bfd *abfd)
+ {
++  if (bfd_get_flavour(abfd) != bfd_target_aout_flavour)
++    return false;
+   if (obj_aout_external_syms (abfd) == NULL)
+     {
+       bfd_size_type count;
+@@ -1847,13 +1863,32 @@ emit_stringtab (bfd *abfd, struct bfd_strtab_hash *tab)
+ {
+   bfd_byte buffer[BYTES_IN_WORD];
+   size_t amt = BYTES_IN_WORD;
++  bfd_size_type odd;
++
++  /* The MiNT backend writes past the string table.  It therefore has to
++     know about the table size.  */
++  obj_aout_external_string_size (abfd) = _bfd_stringtab_size (tab) +
++    BYTES_IN_WORD;
++  /* For MiNT atleast, the size of the string table should be even,
++     or the TPA relocation (and its first longword) will start on
++     an odd address */
++  odd = obj_aout_external_string_size (abfd) & 1;
++  obj_aout_external_string_size (abfd) += odd;
+ 
+   /* The string table starts with the size.  */
+-  PUT_WORD (abfd, _bfd_stringtab_size (tab) + BYTES_IN_WORD, buffer);
++  PUT_WORD (abfd, obj_aout_external_string_size (abfd), buffer);
+   if (bfd_bwrite ((void *) buffer, amt, abfd) != amt)
+     return false;
+ 
+-  return _bfd_stringtab_emit (abfd, tab);
++  if (_bfd_stringtab_emit (abfd, tab) == false)
++    return false;
++  if (odd)
++    {
++      buffer[0] = 0;
++      if (bfd_bwrite ((void *) buffer, 1, abfd) != 1)
++        return false;
++    }
++  return true;
+ }
+ 
+ bool
+@@ -4276,10 +4311,17 @@ aout_link_input_section_std (struct aout_final_link_info *flaginfo,
+ 		(flaginfo->info, name, input_bfd, input_section, r_addr, true);
+ 	    }
+ 
++#ifdef MY_final_link_relocate_rel
++	  r = MY_final_link_relocate_rel (howto,
++					  input_bfd, input_section,
++					  contents, r_addr, relocation,
++					  (bfd_vma) 0, rel);
++#else
+ 	  r = MY_final_link_relocate (howto,
+ 				      input_bfd, input_section,
+ 				      contents, r_addr, relocation,
+ 				      (bfd_vma) 0);
++#endif
+ 	}
+ 
+       if (r != bfd_reloc_ok)
+@@ -5477,7 +5519,8 @@ NAME (aout, final_link) (bfd *abfd,
+      FIXME: At this point we do not know how much space the symbol
+      table will require.  This will not work for any (nonstandard)
+      a.out target that needs to know the symbol table size before it
+-     can compute the relocation file positions.  */
++     can compute the relocation file positions.  This may or may not
++     be the case for the hp300hpux target, for example.  */
+   (*callback) (abfd, &aout_info.treloff, &aout_info.dreloff,
+ 	       &aout_info.symoff);
+   obj_textsec (abfd)->rel_filepos = aout_info.treloff;
+diff --git a/bfd/archive.c b/bfd/archive.c
+index 9ad61adc615..8e8dcbbfdb8 100644
+--- a/bfd/archive.c
++++ b/bfd/archive.c
+@@ -923,7 +923,7 @@ bfd_generic_archive_p (bfd *abfd)
+       return NULL;
+     }
+ 
+-  if (abfd->target_defaulted && bfd_has_map (abfd))
++  if (bfd_has_map (abfd))
+     {
+       bfd *first;
+       unsigned int save;
+@@ -948,7 +948,14 @@ bfd_generic_archive_p (bfd *abfd)
+ 	  first->target_defaulted = false;
+ 	  if (bfd_check_format (first, bfd_object)
+ 	      && first->xvec != abfd->xvec)
+-	    bfd_set_error (bfd_error_wrong_object_format);
++	    {
++	      bfd_set_error (bfd_error_wrong_object_format);
++	      if (abfd->is_linker_input)
++	        {
++	          bfd_ardata (abfd) = tdata_hold;
++	          return NULL;
++	        }
++	    }
+ 	  bfd_close (first);
+ 	}
+     }
+@@ -1236,6 +1243,13 @@ bfd_slurp_armap (bfd *abfd)
+   return true;
+ }
+ 
++/* Returns FALSE on error, TRUE otherwise.  */
++/* Flavor 2 of a bsd armap, similar to bfd_slurp_bsd_armap except the
++   header is in a slightly different order and the map name is '/'.
++   This flavour is used by hp300hpux.  */
++
++#define HPUX_SYMDEF_COUNT_SIZE 2
++
+ /** Extended name table.
+ 
+   Normally archives support only 14-character filenames.
+diff --git a/bfd/bfd-in.h b/bfd/bfd-in.h
+index 9d0738a232a..1988be0677b 100644
+--- a/bfd/bfd-in.h
++++ b/bfd/bfd-in.h
+@@ -23,11 +23,6 @@
+ #ifndef __BFD_H_SEEN__
+ #define __BFD_H_SEEN__
+ 
+-/* PR 14072: Ensure that config.h is included first.  */
+-#if !defined PACKAGE && !defined PACKAGE_VERSION
+-#error config.h must be included before this header
+-#endif
+-
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+@@ -440,6 +435,15 @@ uint64_t bfd_get_bits (const void *, int, bool);
+ void bfd_put_bits (uint64_t, void *, int, bool);
+ 
+ 
++/* MiNT executable support routines for the linker.  */
++
++extern bool bfd_m68kmint_set_extended_flags
++  (bfd *, flagword);
++extern bool bfd_m68kmint_set_stack_size
++  (bfd *, bfd_signed_vma);
++extern bool bfd_m68kmint_add_tpa_relocation_entry
++  (bfd *, bfd_vma);
++
+ /* mmap hacks */
+ 
+ struct _bfd_window_internal;
+diff --git a/bfd/bfd-in2.h b/bfd/bfd-in2.h
+index 1f0f18a7e75..34f2c6c2a2f 100644
+--- a/bfd/bfd-in2.h
++++ b/bfd/bfd-in2.h
+@@ -447,6 +447,15 @@ uint64_t bfd_get_bits (const void *, int, bool);
+ void bfd_put_bits (uint64_t, void *, int, bool);
+ 
+ 
++/* MiNT executable support routines for the linker.  */
++
++extern bool bfd_m68kmint_set_extended_flags
++  (bfd *, flagword);
++extern bool bfd_m68kmint_set_stack_size
++  (bfd *, bfd_signed_vma);
++extern bool bfd_m68kmint_add_tpa_relocation_entry
++  (bfd *, bfd_vma);
++
+ /* mmap hacks */
+ 
+ struct _bfd_window_internal;
+diff --git a/bfd/compress.c b/bfd/compress.c
+index b2e39826e38..bf14d410feb 100644
+--- a/bfd/compress.c
++++ b/bfd/compress.c
+@@ -350,7 +350,7 @@ bfd_get_full_section_contents (bfd *abfd, sec_ptr sec, bfd_byte **ptr)
+ 	return false;
+       if (p == NULL)
+ 	{
+-	  p = (bfd_byte *) bfd_malloc (sz);
++	  p = (bfd_byte *) bfd_zmalloc (sz);
+ 	  if (p == NULL)
+ 	    return false;
+ 	  *ptr = p;
+diff --git a/bfd/config.bfd b/bfd/config.bfd
+index a4c6c8e8854..429f67a6602 100644
+--- a/bfd/config.bfd
++++ b/bfd/config.bfd
+@@ -77,6 +77,9 @@ case $targ in
+  mips*-*-irix5* | mips*-*-irix6*)
+     # Not obsolete
+     ;;
++ m68*-*-mint*)
++    # Not obsolete
++    ;;
+  *-adobe-* | \
+  *-go32-rtems* | \
+  *-sony-* | \
+@@ -826,6 +829,16 @@ case "${targ}" in
+     targ_selvecs="m68hc11_elf32_vec m68hc12_elf32_vec"
+     ;;
+ 
++  m68*-*-mintelf*)
++    targ_defvec=m68k_elf32_vec
++    targ_selvecs="aout0_be_vec m68k_aout_mintprg_vec"
++    ;;
++  m68*-*-mint*)
++    targ_defvec=aout0_be_vec
++    targ_selvecs=m68k_aout_mintprg_vec
++    targ_underscore=yes
++    ;;
++
+   m68*-*-*)
+     targ_defvec=m68k_elf32_vec
+     ;;
+diff --git a/bfd/configure b/bfd/configure
+index 4f591b750d8..ef601e7c6c6 100755
+--- a/bfd/configure
++++ b/bfd/configure
+@@ -12972,7 +12972,7 @@ _ACEOF
+ 
+ 
+ case "${host}" in
+-*-*-msdos* | *-*-go32* | *-*-mingw32* | *-*-cygwin* | *-*-windows*)
++*-*-msdos* | *-*-go32* | *-*-mingw32* | *-*-cygwin* | *-*-windows* | *-*-mint*)
+ 
+ $as_echo "#define USE_BINARY_FOPEN 1" >>confdefs.h
+  ;;
+@@ -13457,6 +13457,7 @@ do
+     m68hc11_elf32_vec)		 tb="$tb elf32-m68hc11.lo elf32-m68hc1x.lo elf32.lo $elf" ;;
+     m68hc12_elf32_vec)		 tb="$tb elf32-m68hc12.lo elf32-m68hc1x.lo elf32.lo $elf" ;;
+     m68k_elf32_vec)		 tb="$tb elf32-m68k.lo elf32.lo $elf" ;;
++    m68k_aout_mintprg_vec)	 tb="$tb prg-mint.lo aout32.lo" ;;
+     s12z_elf32_vec)		 tb="$tb elf32-s12z.lo elf32.lo $elf" ;;
+     mach_o_be_vec)		 tb="$tb mach-o.lo dwarf2.lo" ;;
+     mach_o_le_vec)		 tb="$tb mach-o.lo dwarf2.lo" ;;
+diff --git a/bfd/configure.ac b/bfd/configure.ac
+index 6146efb5ae3..623f220ce15 100644
+--- a/bfd/configure.ac
++++ b/bfd/configure.ac
+@@ -514,6 +514,7 @@ do
+     m68hc11_elf32_vec)		 tb="$tb elf32-m68hc11.lo elf32-m68hc1x.lo elf32.lo $elf" ;;
+     m68hc12_elf32_vec)		 tb="$tb elf32-m68hc12.lo elf32-m68hc1x.lo elf32.lo $elf" ;;
+     m68k_elf32_vec)		 tb="$tb elf32-m68k.lo elf32.lo $elf" ;;
++    m68k_aout_mintprg_vec)	 tb="$tb prg-mint.lo aout32.lo" ;;
+     s12z_elf32_vec)		 tb="$tb elf32-s12z.lo elf32.lo $elf" ;;
+     mach_o_be_vec)		 tb="$tb mach-o.lo dwarf2.lo" ;;
+     mach_o_le_vec)		 tb="$tb mach-o.lo dwarf2.lo" ;;
+diff --git a/bfd/elf.c b/bfd/elf.c
+index 89484ceb233..9055da0fcf5 100644
+--- a/bfd/elf.c
++++ b/bfd/elf.c
+@@ -8703,7 +8703,12 @@ _bfd_elf_canonicalize_symtab (bfd *abfd, asymbol **allocation)
+   long symcount = bed->s->slurp_symbol_table (abfd, allocation, false);
+ 
+   if (symcount >= 0)
+-    abfd->symcount = symcount;
++    {
++      abfd->symcount = symcount;
++      /* Cache symbols for the generic linker.  */
++      abfd->outsymbols = allocation;
++    }
++    
+   return symcount;
+ }
+ 
+diff --git a/bfd/elf64-x86-64.c b/bfd/elf64-x86-64.c
+index 62a9a22317a..48e5c637903 100644
+--- a/bfd/elf64-x86-64.c
++++ b/bfd/elf64-x86-64.c
+@@ -5258,11 +5258,7 @@ elf_x86_64_special_sections[]=
+ #define ELF_ARCH			    bfd_arch_i386
+ #define ELF_TARGET_ID			    X86_64_ELF_DATA
+ #define ELF_MACHINE_CODE		    EM_X86_64
+-#if DEFAULT_LD_Z_SEPARATE_CODE
+-# define ELF_MAXPAGESIZE		    0x1000
+-#else
+-# define ELF_MAXPAGESIZE		    0x200000
+-#endif
++#define ELF_MAXPAGESIZE			    0x1000
+ #define ELF_COMMONPAGESIZE		    0x1000
+ 
+ #define elf_backend_can_gc_sections	    1
+diff --git a/bfd/format.c b/bfd/format.c
+index 489ffcffd53..bcb0b298b45 100644
+--- a/bfd/format.c
++++ b/bfd/format.c
+@@ -235,7 +235,7 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+   int match_count, best_count, best_match;
+   int ar_match_index;
+   unsigned int initial_section_id = _bfd_section_id;
+-  struct bfd_preserve preserve, preserve_match;
++  struct bfd_preserve preserve;
+   bfd_cleanup cleanup = NULL;
+ 
+   if (matching != NULL)
+@@ -264,10 +264,7 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+   /* Presume the answer is yes.  */
+   abfd->format = format;
+   save_targ = abfd->xvec;
+-
+-  preserve_match.marker = NULL;
+-  if (!bfd_preserve_save (abfd, &preserve, NULL))
+-    goto err_ret;
++  preserve.marker = NULL;
+ 
+   /* If the target type was explicitly specified, just check that target.  */
+   if (!abfd->target_defaulted)
+@@ -308,7 +305,6 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+ 
+   for (target = bfd_target_vector; *target != NULL; target++)
+     {
+-      void **high_water;
+ 
+       /* The binary target matches anything, so don't return it when
+ 	 searching.  Don't match the plugin target if we have another
+@@ -326,14 +322,6 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+ 	 have sections attached, which will confuse the next
+ 	 _bfd_check_format call.  */
+       bfd_reinit (abfd, initial_section_id, cleanup);
+-      /* Free bfd_alloc memory too.  If we have matched and preserved
+-	 a target then the high water mark is that much higher.  */
+-      if (preserve_match.marker)
+-	high_water = &preserve_match.marker;
+-      else
+-	high_water = &preserve.marker;
+-      bfd_release (abfd, *high_water);
+-      *high_water = bfd_alloc (abfd, 1);
+ 
+       /* Change BFD's target temporarily.  */
+       abfd->xvec = *target;
+@@ -341,6 +329,12 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+       if (bfd_seek (abfd, (file_ptr) 0, SEEK_SET) != 0)
+ 	goto err_ret;
+ 
++      /* If _bfd_check_format neglects to set bfd_error, assume
++	 bfd_error_wrong_format.  We didn't used to even pay any
++	 attention to bfd_error, so I suspect that some
++	 _bfd_check_format might have this problem.  */
++      bfd_set_error (bfd_error_wrong_format);
++
+       cleanup = BFD_SEND_FMT (abfd, _bfd_check_format, (abfd));
+       if (cleanup)
+ 	{
+@@ -354,6 +348,10 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+ 	    match_priority = (*target)->match_priority;
+ #endif
+ 
++	  match_targ = abfd->xvec;
++	  if (preserve.marker != NULL)
++	    bfd_preserve_finish (abfd, &preserve);
++
+ 	  if (abfd->format != bfd_archive
+ 	      || (bfd_has_map (abfd)
+ 		  && bfd_get_error () != bfd_error_wrong_object_format))
+@@ -392,14 +390,12 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+ 	      ar_match_index++;
+ 	    }
+ 
+-	  if (preserve_match.marker == NULL)
+-	    {
+-	      match_targ = abfd->xvec;
+-	      if (!bfd_preserve_save (abfd, &preserve_match, cleanup))
+-		goto err_ret;
+-	      cleanup = NULL;
+-	    }
++	  if (!bfd_preserve_save (abfd, &preserve, cleanup))
++	    goto err_ret;
++	  cleanup = NULL;
+ 	}
++      else if (bfd_get_error () != bfd_error_wrong_format)
++	goto err_ret;
+     }
+ 
+   if (best_count == 1)
+@@ -469,8 +465,8 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+      really shouldn't iterate on live bfd's.  Note that saving the
+      whole bfd and restoring it would be even worse; the first thing
+      you notice is that the cached bfd file position gets out of sync.  */
+-  if (preserve_match.marker != NULL)
+-    cleanup = bfd_preserve_restore (abfd, &preserve_match);
++  if (preserve.marker != NULL)
++    cleanup = bfd_preserve_restore (abfd, &preserve);
+ 
+   if (match_count == 1)
+     {
+@@ -485,7 +481,6 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+       if (match_targ != right_targ)
+ 	{
+ 	  bfd_reinit (abfd, initial_section_id, cleanup);
+-	  bfd_release (abfd, preserve.marker);
+ 	  if (bfd_seek (abfd, (file_ptr) 0, SEEK_SET) != 0)
+ 	    goto err_ret;
+ 	  cleanup = BFD_SEND_FMT (abfd, _bfd_check_format, (abfd));
+@@ -502,9 +497,6 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+ 	abfd->output_has_begun = true;
+ 
+       free (matching_vector);
+-      if (preserve_match.marker != NULL)
+-	bfd_preserve_finish (abfd, &preserve_match);
+-      bfd_preserve_finish (abfd, &preserve);
+ 
+       /* File position has moved, BTW.  */
+       return true;
+@@ -520,9 +512,8 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+       abfd->xvec = save_targ;
+       abfd->format = bfd_unknown;
+       free (matching_vector);
+-      if (preserve_match.marker != NULL)
+-	bfd_preserve_finish (abfd, &preserve_match);
+-      bfd_preserve_restore (abfd, &preserve);
++      if (preserve.marker != NULL)
++	bfd_preserve_restore (abfd, &preserve);
+       return false;
+     }
+ 
+@@ -543,13 +534,8 @@ bfd_check_format_matches (bfd *abfd, bfd_format format, char ***matching)
+ 	  *(const char **) &matching_vector[match_count] = name;
+ 	}
+     }
+-  else
+-    free (matching_vector);
+   if (cleanup)
+     cleanup (abfd);
+-  if (preserve_match.marker != NULL)
+-    bfd_preserve_finish (abfd, &preserve_match);
+-  bfd_preserve_restore (abfd, &preserve);
+   return false;
+ }
+ 
+diff --git a/bfd/gen-aout.c b/bfd/gen-aout.c
+index 26ef78359db..21423a35901 100644
+--- a/bfd/gen-aout.c
++++ b/bfd/gen-aout.c
+@@ -92,6 +92,9 @@ main (int argc, char** argv)
+ 
+ #ifdef vax
+   arch = "vax";
++#endif
++#ifdef m68k
++  arch = "m68k";
+ #endif
+   if (arch[0] == '1')
+     {
+diff --git a/bfd/libaout.h b/bfd/libaout.h
+index 31b24d3af2b..f1e46db84f3 100644
+--- a/bfd/libaout.h
++++ b/bfd/libaout.h
+@@ -102,7 +102,7 @@ struct aout_link_hash_entry
+ {
+   struct bfd_link_hash_entry root;
+   /* Whether this symbol has been written out.  */
+-  bool written;
++  int written;
+   /* Symbol index in output file.  */
+   int indx;
+ };
+@@ -421,6 +421,10 @@ struct aoutdata
+      table, used when linking on SunOS.  This is indexed by the symbol
+      index.  */
+   bfd_vma *local_got_offsets;
++
++  /* A pointer for data used by aout extensions.  (Currently only used
++     by MiNT executables (see prg-mint.c).  */
++  void *ext;
+ };
+ 
+ struct  aout_data_struct
+@@ -448,6 +452,7 @@ struct  aout_data_struct
+ #define obj_aout_string_window(bfd)	   (adata (bfd).string_window)
+ #define obj_aout_sym_hashes(bfd)	   (adata (bfd).sym_hashes)
+ #define obj_aout_dynamic_info(bfd)	   (adata (bfd).dynamic_info)
++#define obj_aout_ext(bfd)              (adata (bfd).ext)
+ 
+ /* We take the address of the first element of an asymbol to ensure that the
+    macro is only ever applied to an asymbol.  */
+diff --git a/bfd/prg-mint.c b/bfd/prg-mint.c
+new file mode 100644
+index 00000000000..ace27b14926
+--- /dev/null
++++ b/bfd/prg-mint.c
+@@ -0,0 +1,1730 @@
++/* BFD backend for traditional MiNT executables.
++   Copyright (C) 1998-2017 Free Software Foundation, Inc.
++   Originally written by Guido Flohr (guido@freemint.de).
++   Modified by Vincent Riviere (vincent.riviere@freesbee.fr).
++
++   This file is part of BFD, the Binary File Descriptor library.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software
++   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
++   MA 02110-1301, USA.  */
++
++/* The format of executables on Atari is actually not a.out,  it is
++   only chosen as an approach which comes close enough.  The layout of a
++   program image on disk looked like this:
++
++   +-----------------+
++   | 28 Bytes Header |
++   +-----------------+
++   | Text segment    |
++   +-----------------+
++   | Data segment    |
++   +-----------------+
++   | BSS	     |
++   +-----------------+
++   | Symbol table    |
++   +-----------------+
++   | TPA relocation  |
++   +-----------------+
++
++   The 28 byte exec header used to look like this:
++
++   struct old_exec_header
++   {
++     bfd_byte a_magic[2];
++     bfd_byte a_text[4];
++     bfd_byte a_data[4];
++     bfd_byte a_bss[4];
++     bfd_byte a_syms[4];
++     bfd_byte a_resvd[4];
++     bfd_byte a_abs[2];
++   };
++
++   The first two bytes (A_MAGIC) contained an assembler branch
++   instruction to the beginning of the text segment.  Because the
++   exec header had a fixed size and the text entry point was constant
++   this assembler instruction also had a constant value (0x601a).
++   In fact the operating system never really executed the branch
++   instruction but used this value (0x601a) as a magic value.
++
++   TEXT, DATA and BSS were as one would expect them.  The symbol
++   table wasn't.  Several different formats were in use, none of them
++   very efficient, none of them powerful enough to support source
++   level debugging.  I've changed that and the GNU symbol table will
++   now be used instead (unless the --traditional-format option was
++   given to the linker).
++
++   If the last member A_ABS of the exec header is zero the program
++   image contains an additional table with relocation information
++   at the end of the image.  The kernel can load program images at
++   virtually any address in the address space.  In fact it will load
++   it at the start of the biggest block of free memory.  This block
++   is then called the Transient Program Area TPA and the image has
++   to be relocated against the TPA at runtime.  The relocation info
++   itself is in a simply way compressed:  It starts with a four-byte
++   value, the first address within the image to be relocated.  Now
++   following are one-byte offsets to the last address.  The special
++   value of 1 (which is impossible as an offset) signifies that 254
++   has to be added to the next offset.  The table is finished with
++   a zero-byte.
++
++   I now simply extended the header from its old 28 bytes to 256
++   bytes.  The first 28 bytes give home to a standard Atari header,
++   the rest is for extensions.  The extension header starts with
++   a ``real'' assembler instruction, a far jump to the text entry
++   point.  The extension header gives home to a standard a.out
++   exec header (currently NMAGIC) plus some extra
++   more or less useful fields plus space to future extensions.
++   For the OS the extension header will already belong to the text
++   segment, for BFD backends the text segment is 228 (or 0xe4)
++   bytes smaller than for the OS.  This explains for example the
++   funny TEXT_START_ADDR 0xe4.
++
++   The TARGET_PAGE_SIZE is 2 which is only fake.  There is currently
++   no such thing as memory paging on the Atari (and this is why
++   ZMAGICs are disabled for now to allow for future enhancements).
++
++   If you think that this whole file looks quite like a big hack
++   you're probably right.  But the results (mainly the output of
++   the linker) seem to work and they allow to use up-to-date
++   binutils on the Atari until a better executable format (maybe
++   ELF) has been established for this machine.  */
++
++#include "sysdep.h"
++#include "bfd.h"
++
++#define N_HEADER_IN_TEXT(x) 0
++#define BYTES_IN_WORD 4
++#define ENTRY_CAN_BE_ZERO
++#define N_SHARED_LIB(x) 0
++#define TEXT_START_ADDR 0xe4
++#define TARGET_PAGE_SIZE 2
++#define TARGET_IS_BIG_ENDIAN_P
++#define DEFAULT_ARCH bfd_arch_m68k
++#define N_TXTADDR(x) TEXT_START_ADDR
++
++/* Do not "beautify" the CONCAT* macro args.  Traditional C will not
++   remove whitespace added here, and thus will fail to concatenate
++   the tokens.  */
++#define MY(OP) CONCAT2 (m68k_aout_mintprg_,OP)
++#define TARGETNAME "a.out-mintprg"
++#define NAME(x,y) CONCAT3 (mintprg,_32_,y)
++
++/* We have to do quite a lot of magic to make the Atari format
++   for GEMDOS executables fit into the standard a.out format.
++   We start with the original header.  */
++#define external_exec mint_external_exec
++struct mint_external_exec
++{
++  bfd_byte g_branch[2]; 	     /* 0x601a.  */
++  bfd_byte g_text[4];		     /* Length of text section.  */
++  bfd_byte g_data[4];		     /* Length of data section.  */
++  bfd_byte g_bss[4];		     /* Length of bss section.  */
++  bfd_byte g_syms[4];		     /* Length of symbol table.  */
++  bfd_byte g_extmagic[4];	     /* Always 0x4d694e54
++					(in ASCII: ``MiNT'').  */
++  bfd_byte g_flags[4];		     /* Atari special flags.  */
++  bfd_byte g_abs[2];		     /* Non-zero if absolute (no relocation
++					info.  */
++
++  /* We extend this header now to provide the information that the
++     binutils want to see.  Everything following will actually be part
++     of the text segment (from MiNT's point of view).  As a
++     consequence the text section has 228 bytes of redundancy.
++
++     The following eight bytes should be treated as opaque.
++     If the word ``opaque'' always attracts your curiosity in
++     typedefs and structs, here's the explanation:  These eight bytes
++     are really two assembler instructions.  The first one moves
++     the contents of e_entry into register d0, the second one
++     jumps (pc-relative) to the entry point.  See swap_exec_header_out
++     for details.  */
++  bfd_byte g_jump_entry[8];
++
++  /* Now following a standard a.out header.  Note that the values
++     may differ from the one given on top.  The traditional header
++     contains the values that the OS wants to see, the values below
++     are the values that make the binutils work.  */
++  bfd_byte e_info[4];		     /* Magic number and stuff.  */
++  bfd_byte e_text[4];		     /* Length of text section in bytes.  */
++  bfd_byte e_data[4];		     /* Length of data section.  */
++  bfd_byte e_bss[4];		     /* Length of standard symbol
++					table.  */
++  bfd_byte e_syms[4];		     /* Length of symbol table.  */
++  bfd_byte e_entry[4];		     /* Start address.  */
++  bfd_byte e_trsize[4]; 	     /* Length of text relocation
++					info.  */
++  bfd_byte e_drsize[4]; 	     /* Length of data relocation
++					info.  */
++
++  bfd_byte g_tparel_pos[4];	     /* File position of TPA relative
++					relocation info.  */
++  bfd_byte g_tparel_size[4];	     /* Length of TPA relative relocation
++					info.  */
++
++  /* This is for extensions.  */
++  bfd_byte g_stkpos[4]; 	     /* If stacksize is hardcoded into
++					the executable you will find it
++					at file offset g_stkpos.  If
++					not this is NULL.  */
++
++  bfd_byte g_symbol_format[4];	     /* Format of the symbol table.  See
++					definitions for _MINT_SYMBOL_FORMAT*
++					above.  */
++
++  /* Pad with zeros.  */
++  bfd_byte g_pad0[172];
++};
++#define EXEC_BYTES_SIZE 256
++#define GEMDOS_HEADER_SIZE 28
++
++/* The following defines are required by aoutx.h.
++   They are not automatically defined in aout/aout64.h
++   if external_exec is defined.  */
++
++#define OMAGIC 0407	/* Object file or impure executable.  */
++#define NMAGIC 0410	/* Code indicating pure executable.  */
++#define ZMAGIC 0413	/* Code indicating demand-paged executable.  */
++#define BMAGIC 0415	/* Used by a b.out object.  */
++#define QMAGIC 0314	/* Like ZMAGIC but with N_HEADER_IN_TEXT true.  */
++
++/* Files using the following magic flags will not be loaded.  */
++#define N_BADMAG(x)	(N_MAGIC(x) != NMAGIC)
++
++/* For DRI symbol table format.  */
++struct dri_symbol
++{
++  bfd_byte a_name[8];	  /* Symbol name */
++  bfd_byte a_type[2];	  /* Type flag, i.e. A_TEXT etc; see below.  */
++  bfd_byte a_value[4];	  /* value of this symbol (or sdb offset).  */
++};
++#define DRI_SYMBOL_SIZE 14
++
++/* Simple values for a_type.  */
++#define A_UNDF	0
++#define A_BSS	0x0100
++#define A_TEXT	0x0200
++#define A_DATA	0x0400
++#define A_EXT	0x0800	      /* External.  */
++#define A_EQREG 0x1000	      /* Equated register.  */
++#define A_GLOBL 0x2000	      /* Global.  */
++#define A_EQU	0x4000	      /* Equated.  */
++#define A_DEF	0x8000	      /* Defined.  */
++#define A_LNAM	0x0048	      /* GST compatible long name.  */
++			      /* File symbols ala aln.  */
++#define A_TFILE 0x0280	      /* Text file corresponding to object module.  */
++#define A_TFARC 0x02C0	      /* Text file archive.  Unfortunately this
++				 conflicts with the bits in A_LNAM.  */
++
++/* The following include contains the definitions for internal a.out structures
++   as well as the prototypes for the NAME(...) functions defined in aoutx.h.  */
++
++#include "libaout.h"
++
++/* The following function is similar to _bfd_final_link_relocate, except it
++   adds the reloc structure as an additional parameter.
++   It will be used int aoutx.h.  */
++
++static bfd_reloc_status_type
++MY (final_link_relocate_rel) (reloc_howto_type *howto,
++			      bfd *input_bfd,
++			      asection *input_section,
++			      bfd_byte *contents,
++			      bfd_vma address,
++			      bfd_vma value,
++			      bfd_vma addend,
++			      struct reloc_std_external *rel);
++
++#define MY_final_link_relocate_rel MY (final_link_relocate_rel)
++
++/* The following include contains the definitions for the NAME(...) functions.  */
++
++#include "aoutx.h"
++
++/* Data structure that holds some private information for us.  */
++struct mint_internal_info
++{
++  struct bfd_link_info *linkinfo;    /* Remembered from final_link.  */
++  bool	traditional_format;  /* Saved from link info.  */
++  int		symbol_format;	     /* Format of the symbol table.  */
++  void		*tparel;	     /* Data for TPA relative relocation
++					information.  */
++  file_ptr	tparel_pos;	     /* File position of TPA relative
++					relocation information.  */
++  bfd_size_type tparel_size;	     /* Size of TPA relative relocation
++					information.  */
++  bfd_size_type dri_symtab_size;     /* Size of traditional symbol table.  */
++
++#define MINT_RELOC_CHUNKSIZE 0x1000
++  bfd_vma	*relocs;	     /* Array of address relocations.  */
++  unsigned long relocs_used;	     /* Number of relocation entries
++					already used up.  */
++  unsigned long relocs_allocated;    /* Number of relocation entries
++					allocated.  */
++
++  bfd_vma	stkpos; 	     /* File offset to value of _stksize.  */
++
++  flagword	prg_flags;	     /* Standard GEMDOS flags.  */
++
++  bool 	override_stack_size; /* TRUE if the executable stack size
++					must be overriden with stack_size.  */
++  bfd_signed_vma stack_size;
++
++  bool	reloc_error;	     /* TRUE if an unhandled error during
++					relocation occured.  */
++};
++
++/* If --traditional-format was given to the linker an old-style DRI
++   symbol table is written into the executable.  This is with respect
++   to many old debugging tools or disassemblers which expect this format.
++   Although created by the linker, these symbols will be ignored from
++   input files.  */
++#define _MINT_SYMBOL_FORMAT_GNU  0
++#define _MINT_SYMBOL_FORMAT_DRI  1
++
++/* Declarations for the variables and functions
++   defined later in aout-target.h.  */
++
++static bfd_cleanup
++MY (callback) (bfd *abfd);
++
++static void
++MY_final_link_callback (bfd *abfd,
++			file_ptr *ptreloff,
++			file_ptr *pdreloff,
++			file_ptr *psymoff);
++
++extern const bfd_target MY (vec);
++
++/* Initialize a new BFD using our file format.  */
++
++#define MY_mkobject MY (mkobject)
++
++static bool
++MY (mkobject) (bfd *abfd)
++{
++  struct mint_internal_info *myinfo;
++
++  if (!NAME (aout, mkobject (abfd)))
++    return false;
++
++  /* Allocate our private BFD data.  */
++  myinfo = bfd_zalloc (abfd, sizeof (*myinfo));
++  if (myinfo == NULL)
++    return false;
++  obj_aout_ext (abfd) = myinfo;
++
++  return true;
++}
++
++/* Finish up the reading of an a.out file header.  */
++
++#define MY_object_p MY (object_p)
++
++static bfd_cleanup
++MY (object_p) (bfd *abfd)
++{
++  struct external_exec exec_bytes;	/* Raw exec header from file.  */
++  struct internal_exec exec;		/* Cleaned-up exec header.  */
++  bfd_size_type amt = EXEC_BYTES_SIZE;
++  struct mint_internal_info *myinfo;
++
++  /* Read the exec bytesd from the file.  */
++  if (bfd_bread (&exec_bytes, amt, abfd) != amt)
++    {
++      if (bfd_get_error () != bfd_error_system_call)
++	bfd_set_error (bfd_error_wrong_format);
++      return NULL;
++    }
++
++  /* Instead of byte-swapping we compare bytes.  */
++  if (exec_bytes.g_branch[0] != 0x60
++      || exec_bytes.g_branch[1] != 0x1a
++      || exec_bytes.g_extmagic[0] != 'M'
++      || exec_bytes.g_extmagic[1] != 'i'
++      || exec_bytes.g_extmagic[2] != 'N'
++      || exec_bytes.g_extmagic[3] != 'T')
++    {
++      bfd_set_error (bfd_error_wrong_format);
++      return NULL;
++    }
++
++  /* Swap the standard a.out fields.  */
++  NAME (aout, swap_exec_header_in) (abfd, &exec_bytes, &exec);
++
++  /* Check a.out magic value.  */
++  if (N_BADMAG (&exec))
++    {
++      bfd_set_error (bfd_error_wrong_format);
++      return NULL;
++    }
++
++  /* Initialize this BFD with the exec values.  */
++  NAME (aout, some_aout_object_p) (abfd, &exec, MY (callback));
++
++  /* Allocate our private BFD data.  */
++  myinfo = bfd_zalloc (abfd, sizeof (*myinfo));
++  if (myinfo == NULL)
++    return NULL;
++  obj_aout_ext (abfd) = myinfo;
++
++  /* Now get the missing information.  */
++  myinfo->prg_flags = bfd_h_get_32 (abfd, exec_bytes.g_flags);
++  myinfo->stkpos = bfd_h_get_32 (abfd, exec_bytes.g_stkpos);
++  myinfo->symbol_format = bfd_h_get_32 (abfd, exec_bytes.g_symbol_format);
++
++  /* TPA relocation information.  */
++  myinfo->tparel_pos = bfd_h_get_32 (abfd, exec_bytes.g_tparel_pos);
++  myinfo->tparel_size = bfd_h_get_32 (abfd, exec_bytes.g_tparel_size);
++
++  /* FIXME:  Currently we always read the TPA relative relocation
++     information.  This is suboptimal because often times there
++     is no need for it.  Read it only if need be!  Maybe this should
++     also depend on abfd->cacheable?  */
++  if (myinfo->tparel_size == 0)
++    myinfo->tparel = bfd_zalloc (abfd, 4);
++  else
++    myinfo->tparel = bfd_alloc (abfd, myinfo->tparel_size);
++
++  if (myinfo->tparel == NULL)
++    return NULL;
++
++  if (myinfo->tparel_size == 0)
++    {
++      myinfo->tparel_size = 4;
++    }
++  else
++    {
++      /* Read the information from the bfd.  */
++      if (bfd_seek (abfd, myinfo->tparel_pos, SEEK_SET) != 0
++	  || (bfd_bread (myinfo->tparel, myinfo->tparel_size, abfd)
++	      != myinfo->tparel_size))
++	return NULL;
++    }
++
++  return _bfd_no_cleanup;
++}
++
++/* Free all information we have cached for this BFD.  We can always
++   read it again later if we need it.  */
++
++#define MY_bfd_free_cached_info MY (bfd_free_cached_info)
++
++static bool
++MY (bfd_free_cached_info) (bfd *abfd)
++{
++  struct mint_internal_info *myinfo;
++
++  if (abfd->format == bfd_unknown)
++    return true;
++  myinfo = obj_aout_ext (abfd);
++  if (myinfo != NULL && myinfo->relocs != NULL)
++    {
++      free (myinfo->relocs);
++      myinfo->relocs = NULL;
++    }
++
++  /* myinfo itself has been allocated by bfd_zalloc()
++     so will be automatically freed along with the BFD.
++     Same for myinfo->tparel.  */
++
++  return NAME (aout, bfd_free_cached_info) (abfd);
++}
++
++/* Write a DRI symbol with TYPE and VALUE.  If the NAME of the
++   symbol exceeds 8 characters write a long symbol.  If it
++   exceeds 22 characters truncate the name.  */
++
++static int
++write_dri_symbol (bfd *abfd, const char *name, int type, bfd_vma value)
++{
++  int written_bytes = 0;
++  struct dri_symbol sym;
++  int is_long_name = strlen (name) > sizeof (sym.a_name);
++
++  if (is_long_name)
++    type |= A_LNAM;
++
++  strncpy ((char*)sym.a_name, name, sizeof (sym.a_name));
++  bfd_put_16 (abfd, type, sym.a_type);
++  bfd_put_32 (abfd, value, sym.a_value);
++
++  if (bfd_bwrite (&sym, DRI_SYMBOL_SIZE, abfd) != DRI_SYMBOL_SIZE)
++    return -1;
++  written_bytes += DRI_SYMBOL_SIZE;
++
++  if (is_long_name)
++    {
++      char more_name[DRI_SYMBOL_SIZE + 1];
++
++      strncpy (more_name, name + sizeof (sym.a_name), DRI_SYMBOL_SIZE);
++
++      if (bfd_bwrite (more_name, DRI_SYMBOL_SIZE, abfd) != DRI_SYMBOL_SIZE)
++	return -1;
++      written_bytes += DRI_SYMBOL_SIZE;
++    }
++
++  return written_bytes;
++}
++
++/* Emit a traditional DRI symbol table while linking.
++   Most of this code comes from aout_link_write_symbols() in aoutx.h.  */
++
++static bool
++link_write_traditional_syms (bfd *abfd, struct bfd_link_info *info)
++{
++  bfd			     *input_bfd;
++  enum bfd_link_strip	     strip = info->strip;
++  enum bfd_link_discard      discard = info->discard;
++  struct mint_internal_info  *myinfo = obj_aout_ext (abfd);
++  bfd			     *last_archive = NULL;
++
++  /* Position file pointer.  */
++  if (bfd_seek (abfd, obj_sym_filepos (abfd), SEEK_SET) != 0)
++    return false;
++
++  myinfo->dri_symtab_size = 0;
++
++  for (input_bfd = info->input_bfds; input_bfd != NULL; input_bfd = input_bfd->link.next)
++    {
++      bfd_size_type sym_count = obj_aout_external_sym_count (input_bfd);
++      char *strings = obj_aout_external_strings (input_bfd);
++      struct external_nlist *sym = obj_aout_external_syms (input_bfd);
++      struct external_nlist *sym_end = sym + sym_count;
++      struct aout_link_hash_entry **sym_hash = obj_aout_sym_hashes (input_bfd);
++      bool pass = false;
++      bool skip = false;
++      bool skip_next = false;
++      int written_bytes;
++      int a_type;
++      bool write_archive_name = false;
++      bfd_vma val = 0;
++
++      /* First write out a symbol for the archive if we do not
++	 strip these symbols and if it differs from the last
++	 one.  */
++      if (input_bfd->my_archive != last_archive
++	  && input_bfd->my_archive != NULL)
++	{
++	  write_archive_name = true;
++	  last_archive = input_bfd->my_archive;
++	}
++
++      if (write_archive_name
++	  && strip != strip_all
++	  && (strip != strip_some
++	      || bfd_hash_lookup (info->keep_hash,
++				  input_bfd->my_archive->filename,
++				  false, false) != NULL)
++	  && discard != discard_all)
++	{
++	  asection *section = obj_textsec (input_bfd)->output_section;
++	  val = bfd_section_vma (section) + section->output_offset;
++
++	  written_bytes = write_dri_symbol (abfd,
++					    input_bfd->my_archive->filename,
++					    A_TFILE, val);
++
++	  if (written_bytes < 0)
++	    return false;
++	  else
++	    myinfo->dri_symtab_size += written_bytes;
++	}
++
++      /* Now write out a symbol for the object file if we do not
++	 strip these symbols.  */
++      if (strip != strip_all
++	  && (strip != strip_some
++	      || bfd_hash_lookup (info->keep_hash, input_bfd->filename,
++				  false, false) != NULL)
++	  && discard != discard_all)
++	{
++	  asection *section = obj_textsec (input_bfd)->output_section;
++	  val = bfd_section_vma (section) + section->output_offset;
++
++	  written_bytes = write_dri_symbol (abfd, input_bfd->filename,
++					    A_TFILE, val);
++	  if (written_bytes < 0)
++	    return false;
++	  else
++	    myinfo->dri_symtab_size += written_bytes;
++	}
++
++      /* Now we have a problem.  All symbols that we see have already
++	 been marked written (because we write them a second time
++	 here.  If we would do it the clean way we would have
++	 to traverse the entire symbol map and reset the written
++	 flag.  We hack here instead...  */
++#define mark_written(h) (h->written = 2)
++#define is_written(h) ((int) h->written == 2)
++      for (; sym < sym_end; sym++, sym_hash++)
++	{
++	  const char *name;
++	  int type;
++	  struct aout_link_hash_entry *h;
++	  asection *symsec;
++	  val = 0;
++
++	  type = H_GET_8 (input_bfd, sym->e_type);
++	  name = strings + GET_WORD (input_bfd, sym->e_strx);
++
++	  h = NULL;
++
++	  if (pass)
++	    {
++	      /* Pass this symbol through.  It is the target of an
++	      indirect or warning symbol.  */
++	      val = GET_WORD (input_bfd, sym->e_value);
++	      pass = false;
++	    }
++	  else if (skip_next)
++	    {
++	      /* Skip this symbol, which is the target of an indirect
++		 symbol that we have changed to no longer be an indirect
++		 symbol.  */
++	      skip_next = false;
++	      continue;
++	    }
++	  else
++	    {
++	      struct aout_link_hash_entry *hresolve = *sym_hash;
++
++	      /* We have saved the hash table entry for this symbol, if
++		 there is one.  Note that we could just look it up again
++		 in the hash table, provided we first check that it is an
++		 external symbol. */
++	      h = *sym_hash;
++
++	      /* Use the name from the hash table, in case the symbol was
++		 wrapped.  */
++	    if (h != NULL
++		&& h->root.type != bfd_link_hash_warning)
++		name = h->root.root.string;
++
++	      /* If this is an indirect or warning symbol, then change
++		 hresolve to the base symbol.  */
++	      hresolve = h;
++	      if (h != (struct aout_link_hash_entry *) NULL
++		  && (h->root.type == bfd_link_hash_indirect
++		      || h->root.type == bfd_link_hash_warning))
++		{
++		  hresolve = (struct aout_link_hash_entry*) h->root.u.i.link;
++		  while (hresolve->root.type == bfd_link_hash_indirect
++			 || hresolve->root.type == bfd_link_hash_warning)
++		    hresolve = ((struct aout_link_hash_entry*)
++				hresolve->root.u.i.link);
++		}
++
++	      /* If the symbol has already been written out skip it.  */
++	      if (h != NULL
++		  && is_written (h))
++		{
++		  if ((type & N_TYPE) == N_INDR
++		      || type == N_WARNING)
++		    skip_next = true;
++		  continue;
++		}
++
++	      /* See if we are stripping this symbol.  */
++	      skip = false;
++
++	      /* Skip all debugger symbols.  No way to output them in
++		 DRI format.  This will also reduce a lot of headaches.  */
++	      if ((type & N_STAB) != 0)
++		skip = true;
++
++	      switch (strip)
++		{
++		case strip_none:
++		case strip_debugger:
++		  break;
++		case strip_some:
++		  if (bfd_hash_lookup (info->keep_hash, name, false, false)
++		      == NULL)
++		    skip = true;
++		  break;
++		case strip_all:
++		  skip = true;
++		  break;
++		}
++
++	      if (skip)
++		{
++		  if (h != NULL)
++		    mark_written (h);
++		  continue;
++		}
++
++	      /* Get the value of the symbol.  */
++	      if ((type & N_TYPE) == N_TEXT
++		  || type == N_WEAKT)
++		symsec = obj_textsec (input_bfd);
++	      else if ((type & N_TYPE) == N_DATA
++		       || type == N_WEAKD)
++		symsec = obj_datasec (input_bfd);
++	      else if ((type & N_TYPE) == N_BSS
++		       || type == N_WEAKB)
++		symsec = obj_bsssec (input_bfd);
++	      else if ((type & N_TYPE) == N_ABS
++		       || type == N_WEAKA)
++		symsec = bfd_abs_section_ptr;
++	      else if (((type & N_TYPE) == N_INDR
++			&& (hresolve == NULL
++			    || (hresolve->root.type != bfd_link_hash_defined
++				&& hresolve->root.type != bfd_link_hash_defweak
++				&& hresolve->root.type != bfd_link_hash_common)))
++		       || type == N_WARNING)
++		{
++		  /* Pass the next symbol through unchanged.  The
++		     condition above for indirect symbols is so that if
++		     the indirect symbol was defined, we output it with
++		     the correct definition so the debugger will
++		     understand it.  */
++		  pass = true;
++		  val = GET_WORD (input_bfd, sym->e_value);
++		  symsec = NULL;
++		}
++	      else
++		{
++		  /* If we get here with an indirect symbol, it means that
++		     we are outputting it with a real definition.  In such
++		     a case we do not want to output the next symbol,
++		     which is the target of the indirection.  */
++		  if ((type & N_TYPE) == N_INDR)
++		    skip_next = true;
++
++		  symsec = NULL;
++
++		  /* We need to get the value from the hash table.  We use
++		     hresolve so that if we have defined an indirect
++		     symbol we output the final definition.  */
++		  if (h == NULL)
++		    {
++		      switch (type & N_TYPE)
++			{
++			case N_SETT:
++			  symsec = obj_textsec (input_bfd);
++			  break;
++			case N_SETD:
++			  symsec = obj_datasec (input_bfd);
++			  break;
++			case N_SETB:
++			  symsec = obj_bsssec (input_bfd);
++			  break;
++			case N_SETA:
++			  symsec = bfd_abs_section_ptr;
++			  break;
++			default:
++			  val = 0;
++			  break;
++			}
++		    }
++		  else if (hresolve->root.type == bfd_link_hash_defined
++			   || hresolve->root.type == bfd_link_hash_defweak)
++		    {
++		      asection *input_section;
++		      asection *output_section;
++
++		      /* This case usually means a common symbol which was
++			 turned into a defined symbol.  */
++		      input_section = hresolve->root.u.def.section;
++		      output_section = input_section->output_section;
++		      BFD_ASSERT (bfd_is_abs_section (output_section)
++				  || output_section->owner == abfd);
++
++		      /* The following reference to the output section VMA
++			 is commented out because DRI symbols are relative
++			 to the beginning of the section.  */
++		      val = (hresolve->root.u.def.value
++			     /*+ bfd_section_vma (output_section)*/
++			     + input_section->output_offset);
++
++		      /* TEXT symbols values must be adjusted
++			 by adding the size of the extended header.  */
++		      if (output_section == obj_textsec (abfd))
++			val += TEXT_START_ADDR;
++
++		      /* Get the correct type based on the section.  If
++			 this is a constructed set, force it to be
++			 globally visible.  */
++		      if (type == N_SETT
++			  || type == N_SETD
++			  || type == N_SETB
++			  || type == N_SETA)
++			type |= N_EXT;
++
++		      type &=~ N_TYPE;
++
++		      if (output_section == obj_textsec (abfd))
++			type |= N_TEXT;
++		      else if (output_section == obj_datasec (abfd))
++			type |= N_DATA;
++		      else if (output_section == obj_bsssec (abfd))
++			type |= N_BSS;
++		      else
++			type |= N_ABS;
++		    }
++		  else if (hresolve->root.type == bfd_link_hash_common)
++		    val = hresolve->root.u.c.size;
++		  else if (hresolve->root.type == bfd_link_hash_undefweak)
++		    {
++		      val = 0;
++		      type = N_UNDF;
++		    }
++		  else
++		    val = 0;
++		}
++	      if (symsec != NULL)
++		{
++		  /* The following reference to the output section VMA
++		     is commented out because DRI symbols are relative
++		     to the beginning of the section.  */
++		  val = (/*symsec->output_section->vma
++			 +*/ symsec->output_offset
++			 + (GET_WORD (input_bfd, sym->e_value)
++			 - symsec->vma));
++
++		  /* TEXT symbols values must be adjusted
++		     by adding the size of the extended header.  */
++		  if (symsec == obj_textsec (input_bfd))
++		    val += TEXT_START_ADDR;
++		}
++
++	      /* If this is a global symbol set the written flag, and if
++		 it is a local symbol see if we should discard it.  */
++	      if (h != NULL)
++		{
++		  mark_written (h);
++		}
++	      else if ((type & N_TYPE) != N_SETT
++		       && (type & N_TYPE) != N_SETD
++		       && (type & N_TYPE) != N_SETB
++		       && (type & N_TYPE) != N_SETA)
++		{
++		  switch (discard)
++		    {
++		    case discard_none:
++		    case discard_sec_merge:
++		      break;
++		    case discard_l:
++		      if (bfd_is_local_label_name (input_bfd, name))
++			skip = true;
++		      break;
++		    default:
++		    case discard_all:
++		      skip = true;
++		      break;
++		    }
++		  if (skip)
++		    {
++		      pass = false;
++		      continue;
++		    }
++		}
++	    }
++
++	  /* Now find the nearest type in DRI format.  */
++	  switch (type)
++	    {
++	    case N_ABS:
++	    case N_ABS | N_EXT:
++	    case N_SETA:
++	    case N_SETA | N_EXT:
++	    case N_WEAKA:
++	      a_type = A_EQU | A_DEF | A_GLOBL;
++	      break;
++	    case N_TEXT:
++	    case N_TEXT | N_EXT:
++	    case N_SETT:
++	    case N_SETT | N_EXT:
++	    case N_WEAKT:
++	      a_type = A_TEXT | A_DEF | A_GLOBL;
++	      break;
++	    case N_DATA:
++	    case N_DATA | N_EXT:
++	    case N_SETD:
++	    case N_SETD | N_EXT:
++	    case N_WEAKD:
++	      a_type = A_DATA | A_DEF | A_GLOBL;
++	      break;
++	    case N_BSS:
++	    case N_BSS | N_EXT:
++	    case N_SETB:
++	    case N_SETB | N_EXT:
++	    case N_WEAKB:
++	      a_type = A_BSS | A_DEF | A_GLOBL;
++	      break;
++	    default:
++	      continue;
++	    }
++
++	  written_bytes = write_dri_symbol (abfd, name, a_type, val);
++	  if (written_bytes < 0)
++	    return false;
++
++	  myinfo->dri_symtab_size += written_bytes;
++	}
++    }
++
++  obj_aout_external_string_size (abfd) = 0;
++  return true;
++}
++
++/* This is used for qsort() to sort addresses
++   for the TPA relocation table.  */
++
++static int
++vma_cmp (const void *v1, const void *v2)
++{
++  return (int) ((*((bfd_vma *) v1)) - (*((bfd_vma *) v2)));
++}
++
++/* Alloc and fill the TPA relocation table.  */
++
++static bool
++fill_tparel (bfd *abfd)
++{
++  struct mint_internal_info *myinfo = obj_aout_ext (abfd);
++  unsigned long i;
++  bfd_size_type bytes;
++  unsigned char *ptr;
++
++  /* Sort the relocation info.  */
++  if (myinfo->relocs != NULL)
++    qsort (myinfo->relocs, myinfo->relocs_used, sizeof (bfd_vma),
++	   vma_cmp);
++
++  /* Now calculate the number of bytes we need.  The relocation info
++     is encoded as follows:  The first entry is a 32-bit value
++     denoting the first offset to relocate.  All following entries
++     are relative to the preceding one.  For relative offsets of
++     more than 254 bytes a value of 1 is used.  The OS will then
++     add 254 bytes to the current offset.  The list is then terminated
++     with the byte 0.  */
++  bytes = 4; /* First entry is a long.  */
++  for (i = 1; i < myinfo->relocs_used; i++)
++    {
++      unsigned long diff = myinfo->relocs[i] - myinfo->relocs[i - 1];
++      BFD_ASSERT(diff > 0);
++      bytes += (diff + 253) / 254;
++    }
++  /* Last entry is (bfd_byte) 0 if there are some relocations.  */
++  if (myinfo->relocs_used > 0)
++    bytes++;
++
++  myinfo->tparel_size = bytes;
++  myinfo->tparel = bfd_alloc (abfd, bytes);
++  if (myinfo->tparel == NULL)
++    return false;
++
++  /* Now fill the array.  */
++  ptr = (bfd_byte*) myinfo->tparel;
++  if (myinfo->relocs != NULL)
++    bfd_put_32 (abfd, myinfo->relocs[0], ptr);
++  else
++    bfd_put_32 (abfd, 0, ptr);
++  ptr += 4;
++
++  for (i = 1; i < myinfo->relocs_used; i++)
++    {
++      unsigned long diff = myinfo->relocs[i] - myinfo->relocs[i - 1];
++      while (diff > 254)
++	{
++	  *ptr++ = 1;
++	  diff -= 254;
++	}
++      *ptr++ = (bfd_byte) diff;
++    }
++
++  if (myinfo->relocs_used > 0)
++    *ptr = 0;
++
++  return true;
++}
++
++/* Final link routine.  We need to use a call back to get the correct
++   offsets in the output file.  And we need to malloc some internal
++   buffers.  */
++
++#define MY_bfd_final_link MY (bfd_final_link)
++
++static bool
++MY (bfd_final_link) (bfd *abfd, struct bfd_link_info *info)
++{
++  struct mint_internal_info *myinfo = obj_aout_ext (abfd);
++  struct bfd_link_hash_table *hash = info->hash;
++  enum bfd_link_strip original_strip = info->strip;
++
++  if (bfd_link_relocatable (info))
++    {
++      _bfd_error_handler ("%pB: relocatable output is not supported by format %s",
++	abfd, bfd_get_target (abfd));
++      bfd_set_error (bfd_error_invalid_operation);
++      return false;
++    }
++
++  myinfo->linkinfo = info;
++
++  /* Make sure that for now we never write zmagics.  */
++  abfd->flags &= ~D_PAGED;
++
++  /* Find the __stksize symbol.  This symbol is used for a MiNT
++     special kludge.  The libc defines this symbol in an object file
++     initialized to a default value to make sure it is defined in
++     every output file.  The start-up code in crtinit() then simply
++     sets the stacksize accordingly.  In your programs (if they need
++     an unusual stacksize) you can then simply code:
++
++	   long _stksize = 0x2000;
++
++     This will create a program stack of 2k.  Since MiNT cannot detect
++     a stack overflow this is the only way to prevent program crashes
++     caused by a stack that is too small.
++
++     The ancient linker ignored this feature, the ancient strip
++     program paid heed to it.  By default, strip never stripped this
++     special symbol from the binary.
++
++     Another program called ``printstk'' and its colleague ``fixstk''
++     could be used to either print the current value of the stacksize
++     or to modify it without recompiling and rebuilding.  These
++     programs traversed the symbol table and then took the appropriate
++     measures if the symbol was found.
++
++     Here we do a different approach.  Since we already expanded the
++     standard executable header we now hardcode the address (as a file
++     offset) that the __stksize symbol points to into the header.  We
++     can now let strip safely remove the entry from the symbol table
++     and we're not dependent on a special format of the symbol table.
++     Because the address is kept in the header we will always be able
++     to manipulate the stacksize value later.  */
++  if (hash != NULL)
++    {
++      struct aout_link_hash_entry *h =
++	aout_link_hash_lookup (aout_hash_table (info), "__stksize",
++			       false, false, false);
++      asection *sec;
++
++      if (h != NULL)
++	{
++	  switch (h->root.type)
++	    {
++	    case bfd_link_hash_defined:
++	    case bfd_link_hash_defweak:
++	      sec = h->root.u.def.section->output_section;
++	      BFD_ASSERT (sec->owner == abfd);
++
++	      myinfo->stkpos = (h->root.u.def.value + sec->vma
++				+ h->root.u.def.section->output_offset
++				+ GEMDOS_HEADER_SIZE);
++	      break;
++	    default:  /* Ignore other types.  */
++	      break;
++	    }
++	}
++    }
++
++  if ((abfd->flags & BFD_TRADITIONAL_FORMAT) != 0)
++    {
++      myinfo->traditional_format = true;
++      myinfo->symbol_format = _MINT_SYMBOL_FORMAT_DRI;
++    }
++
++  /* Unconditionally unset the traditional flag.  The only effect in
++     the a.out code is to disable string hashing (with respect to
++     SunOS gdx).  This is not necessary for us.  */
++
++  abfd->flags &= ~BFD_TRADITIONAL_FORMAT;
++
++  /* Do not write GNU symbols in traditional format.  */
++  if (myinfo->traditional_format)
++    info->strip = strip_all;
++
++  if (NAME(aout,final_link) (abfd, info, MY_final_link_callback)
++      == false)
++    return false;
++
++  if (myinfo->reloc_error)
++    return false;
++
++  /* Restore the strip status for the traditional symbols.  */
++  info->strip = original_strip;
++
++  if (myinfo->traditional_format
++      && link_write_traditional_syms (abfd, info) == false)
++    return false;
++
++  if (fill_tparel (abfd) == false)
++    return false;
++
++  return true;
++}
++
++/* Copy private BFD header information from the input BFD.  */
++
++#define MY_bfd_copy_private_header_data MY (bfd_copy_private_header_data)
++
++static bool
++MY (bfd_copy_private_header_data) (bfd *ibfd, bfd *obfd)
++{
++  (void)obfd; /* Unused.  */
++
++  /* We can only copy BFD files using our own file format.  */
++  if (ibfd->xvec != &MY (vec))
++    {
++      _bfd_error_handler ("%pB: cannot convert from format %s to format %s",
++	ibfd, bfd_get_target (ibfd), bfd_get_target (obfd));
++      bfd_set_error (bfd_error_invalid_operation);
++      return false;
++    }
++
++  return true;
++}
++
++/* Copy backend specific data from one object module to another.
++   This function is used by objcopy and strip.  */
++
++#define MY_bfd_copy_private_bfd_data MY (bfd_copy_private_bfd_data)
++
++static bool
++MY (bfd_copy_private_bfd_data) (bfd *ibfd, bfd *obfd)
++{
++  struct mint_internal_info *myinfo_in;
++  struct mint_internal_info *myinfo_out;
++
++  /* obfd uses our file format, ibfd may be foreign.  */
++  if (ibfd->xvec != &MY (vec))
++    return true;
++
++  myinfo_in = obj_aout_ext (ibfd);
++  BFD_ASSERT (myinfo_in != NULL);
++
++  myinfo_out = obj_aout_ext (obfd);
++  BFD_ASSERT (myinfo_out != NULL);
++
++  /* Copy myinfo.  */
++  memcpy (myinfo_out, myinfo_in, sizeof (*myinfo_out));
++
++  /* Copy tparel.  */
++  myinfo_out->tparel = bfd_alloc (obfd, myinfo_out->tparel_size);
++  if (myinfo_out->tparel == NULL)
++    return false;
++  memcpy (myinfo_out->tparel, myinfo_in->tparel, myinfo_out->tparel_size);
++
++  /* Normalize the type of empty symbols.  */
++  if (bfd_get_symcount (obfd) == 0)
++    myinfo_out->symbol_format = _MINT_SYMBOL_FORMAT_GNU;
++
++  return true; /* _bfd_generic_bfd_copy_private_bfd_data (ibfd, obfd); */
++}
++
++/* Merge private BFD information from an input BFD to the output BFD when linking.  */
++
++#define MY_bfd_merge_private_bfd_data MY (merge_private_bfd_data)
++
++static bool
++MY (merge_private_bfd_data) (bfd *ibfd, struct bfd_link_info *info)
++{
++  (void)info; /* Unused.  */
++
++  /* Our file format cannot be used as linker input.  */
++  if (ibfd->xvec == &MY (vec))
++    {
++      _bfd_error_handler ("%pB: file format %s cannot be used as linker input",
++	ibfd, bfd_get_target (ibfd));
++      bfd_set_error (bfd_error_invalid_operation);
++      return false;
++    }
++
++  return true; /* _bfd_generic_bfd_merge_private_bfd_data (ibfd, info); */
++}
++
++/* Find out the symbol name.  */
++
++static const char *
++find_symbol_name (reloc_howto_type *howto, bfd *input_bfd,
++		  bfd_byte *location, struct reloc_std_external *rel)
++{
++  struct external_nlist *syms = obj_aout_external_syms (input_bfd);
++  char *strings = obj_aout_external_strings (input_bfd);
++  struct aout_link_hash_entry **sym_hashes
++    = obj_aout_sym_hashes (input_bfd);
++  struct aout_link_hash_entry *h = NULL;
++  const char *name;
++  bfd_size_type r_index;
++  int r_extern;
++
++  if (bfd_get_reloc_size (howto) != 4)
++    return "(not a symbol)";
++
++  /* The input bfd is always big-endian.  There is no need to
++     call bfd_header_big_endian (input_bfd).  */
++  r_index  = ((rel->r_index[0] << 16)
++	      | (rel->r_index[1] << 8)
++	      | (rel->r_index[2]));
++  r_extern = (0 != (rel->r_type[0] & RELOC_STD_BITS_EXTERN_BIG));
++
++  if (sym_hashes != NULL)
++    h = sym_hashes[r_index];
++
++  if (!r_extern)
++    {
++      bfd_size_type i;
++      bfd_vma wanted_value = bfd_get_32 (input_bfd, location);
++
++      name = NULL;
++      for (i = 0; i < obj_aout_external_sym_count (input_bfd); i++)
++	{
++	  bfd_vma this_value = bfd_get_32 (input_bfd, syms[i].e_value);
++
++	  if (this_value == wanted_value)
++	    {
++	      bfd_byte symtype = bfd_get_8 (input_bfd, syms[i].e_type);
++
++	      /* Skip debug symbols and the like.  */
++	      if ((symtype & N_STAB) != 0)
++		continue;
++
++	      /* This is dirty but preferable to a plethoria of
++		 single comparisons.  */
++	      if (symtype <= (N_BSS | N_EXT)
++		  || (symtype >= N_WEAKU && symtype <= N_COMM))
++		{
++		  name = strings + GET_WORD (input_bfd, syms[i].e_strx);
++		  break;
++		}
++	    }
++	}
++
++      /* FIXME:  If the relocation is against a section there is
++	 probably a symbol for that section floating around somewhere
++	 in the bfd jungle.  */
++      if (name == NULL)
++	{
++	  switch ((r_index & N_TYPE) & ~N_EXT)
++	    {
++	    case N_TEXT:
++	      name = "text section";
++	      break;
++	    case N_DATA:
++	      name = "data section";
++	      break;
++	    case N_BSS:
++	      name = "bss section";
++	      break;
++	    case N_ABS:
++	      name = "absolute section";
++	      break;
++	    default:
++	      name = "unknown section";
++	      break;
++	    }
++	}
++    }
++  else if (h != NULL)
++    name = h->root.root.string;
++  else if (r_index >= obj_aout_external_sym_count (input_bfd))
++    name = "(unknown symbol)";	/* Shouldn't happen.  */
++  else
++    name = strings + GET_WORD (input_bfd, syms[r_index].e_strx);
++
++  return name;
++}
++
++/* This relocation routine is used by some of the backend linkers.
++   They do not construct asymbol or arelent structures, so there is no
++   reason for them to use bfd_perform_relocation.  Also,
++   bfd_perform_relocation is so hacked up it is easier to write a new
++   function than to try to deal with it.
++
++   This routine does a final relocation.  Whether it is useful for a
++   relocatable link depends upon how the object format defines
++   relocations.
++
++   FIXME: This routine ignores any special_function in the HOWTO,
++   since the existing special_function values have been written for
++   bfd_perform_relocation.
++
++   HOWTO is the reloc howto information.
++   INPUT_BFD is the BFD which the reloc applies to.
++   INPUT_SECTION is the section which the reloc applies to.
++   CONTENTS is the contents of the section.
++   ADDRESS is the address of the reloc within INPUT_SECTION.
++   VALUE is the value of the symbol the reloc refers to.
++   ADDEND is the addend of the reloc.  */
++
++/* The additional parameter REL is specific to this backend.
++   This function is derived from _bfd_final_link_relocate()
++   found in reloc.c. It adds additional checking for dangerous
++   relocations in MiNT sharable text sections, then it records
++   the relocated offset in myinfo->relocs[] for further processing.  */
++
++static bfd_reloc_status_type
++MY (final_link_relocate_rel) (reloc_howto_type *howto,
++			      bfd *input_bfd,
++			      asection *input_section,
++			      bfd_byte *contents,
++			      bfd_vma address,
++			      bfd_vma value,
++			      bfd_vma addend,
++			      struct reloc_std_external *rel)
++{
++  bfd_vma relocation;
++  bfd *output_bfd = input_section->output_section->owner;
++  struct mint_internal_info *myinfo = obj_aout_ext (output_bfd);
++  bfd_reloc_status_type retval;
++  int r_index;
++  int r_extern;
++  bool need_tpa_relocation;
++
++  /* The input bfd is always big-endian.  There is no need to
++     call bfd_header_big_endian (input_bfd).  */
++  r_index  = ((rel->r_index[0] << 16)
++	      | (rel->r_index[1] << 8)
++	      | (rel->r_index[2]));
++  r_extern = (0 != (rel->r_type[0] & RELOC_STD_BITS_EXTERN_BIG));
++
++#define _MINT_F_SHTEXT 0x800
++
++  /* Sanity check the address.  */
++  if (address > bfd_get_section_limit (input_bfd, input_section))
++    return bfd_reloc_outofrange;
++
++  /* This function assumes that we are dealing with a basic relocation
++     against a symbol.  We want to compute the value of the symbol to
++     relocate to.  This is just VALUE, the value of the symbol, plus
++     ADDEND, any addend associated with the reloc.  */
++  relocation = value + addend;
++
++  /* Check for dangerous relocations in images with a sharable
++     text section.  */
++  if ((myinfo->prg_flags & _MINT_F_SHTEXT) != 0
++      && bfd_get_reloc_size (howto) == 4)
++    {
++      bool error_found = false;
++      const char *name = NULL;
++
++      if (input_section == obj_textsec (input_bfd))
++	{
++	  if (!r_extern)
++	    {
++	      /* This is a relocation against another section.  Only
++		 relocations against the text section are allowed.  */
++	      if (r_index != N_TEXT && r_index != (N_TEXT | N_EXT))
++		error_found = true;
++	    }
++	  else if (relocation > (input_section->output_section->vma
++			    + input_section->output_section->size))
++	    {
++	      error_found = true;
++	    }
++	  else if (relocation == (input_section->output_section->vma
++				  + input_section->output_section->size))
++	    {
++	      name = find_symbol_name (howto, input_bfd,
++						    contents + address,
++						    rel);
++	      if (strcmp (name, "_etext") == 0)
++		error_found = false;
++	    }
++	}
++
++      if (error_found)
++	{
++	  const struct bfd_link_callbacks *callbacks
++	    = myinfo->linkinfo->callbacks;
++
++	  myinfo->reloc_error = true;
++
++	  if (callbacks->reloc_dangerous != NULL)
++	    {
++	      if (name == NULL)
++		name = find_symbol_name (howto, input_bfd,
++						      contents + address,
++						      rel);
++
++	      callbacks->reloc_dangerous (myinfo->linkinfo, name,
++					  input_bfd,
++					  input_section, address);
++	    }
++	}
++    }
++
++  /* If the relocation is PC relative, we want to set RELOCATION to
++     the distance between the symbol (currently in RELOCATION) and the
++     location we are relocating.  Some targets (e.g., i386-aout)
++     arrange for the contents of the section to be the negative of the
++     offset of the location within the section; for such targets
++     pcrel_offset is FALSE.  Other targets (e.g., m88kbcs or ELF)
++     simply leave the contents of the section as zero; for such
++     targets pcrel_offset is TRUE.  If pcrel_offset is FALSE we do not
++     need to subtract out the offset of the location within the
++     section (which is just ADDRESS).  */
++  if (howto->pc_relative)
++    {
++      relocation -= (input_section->output_section->vma
++		     + input_section->output_offset);
++      if (howto->pcrel_offset)
++	relocation -= address;
++    }
++
++  retval = _bfd_relocate_contents (howto, input_bfd, relocation,
++				   contents + address);
++
++  /* The symbol has to be relocated again iff the length of the relocation
++     is 2 words and it is not pc relative.  */
++  need_tpa_relocation = false;
++  if (!howto->pc_relative && bfd_get_reloc_size (howto) == 4)
++    {
++      if (r_extern)
++	{
++	  struct aout_link_hash_entry **sym_hashes = obj_aout_sym_hashes (input_bfd);
++	  struct aout_link_hash_entry *h = sym_hashes[r_index];
++	  asection *output_section = h->root.u.def.section->output_section;
++
++	  /* Do not relocate absolute symbols.  */
++	  if (output_section == obj_textsec (output_bfd)
++	      || output_section == obj_datasec (output_bfd)
++	      || output_section == obj_bsssec (output_bfd))
++	    {
++	      need_tpa_relocation = true;
++	    }
++	}
++      else
++	{
++	  need_tpa_relocation = true;
++	}
++    }
++
++  /* Here we add the TPA relocation entries for the address references
++     located inside the input sections. Note that if some references
++     to addresses are generated using data statements in the linker
++     script, they will not be relocated here because they do not
++     belong to any input section.  */
++  if (need_tpa_relocation)
++    {
++      bfd_vma tpa_address = input_section->output_section->vma
++	+ input_section->output_offset + address;
++
++      if (!bfd_m68kmint_add_tpa_relocation_entry(output_bfd, tpa_address))
++	return bfd_reloc_other;
++    }
++
++  return retval;
++}
++
++/* Write out the TPA relocation table.  */
++
++static bool
++write_tparel (bfd *abfd, struct internal_exec *execp)
++{
++  struct mint_internal_info* myinfo = obj_aout_ext (abfd);
++
++  if (myinfo->dri_symtab_size == 0)
++    myinfo->tparel_pos = N_STROFF (execp)
++      + obj_aout_external_string_size (abfd);
++  else
++    myinfo->tparel_pos = N_SYMOFF (execp)
++      + myinfo->dri_symtab_size;
++
++  if (bfd_seek (abfd, myinfo->tparel_pos, SEEK_SET) != 0)
++    return false;
++
++  if (bfd_bwrite (myinfo->tparel, myinfo->tparel_size, abfd)
++      != myinfo->tparel_size)
++    return false;
++
++  return true;
++}
++
++/* Write the full exec header.
++   This function must be called last to ensure that we have all the
++   information needed to fill the MiNT-specific header fields.  */
++
++static bool
++write_exec_header (bfd *abfd, struct internal_exec *execp, struct external_exec *exec_bytes)
++{
++  struct mint_internal_info *myinfo = obj_aout_ext (abfd);
++  bfd_size_type symtab_size;
++
++  bfd_h_put_16 (abfd, 0x601a, exec_bytes->g_branch);
++
++  /* The OS will load our extension header fields into the text segment.  */
++  bfd_h_put_32 (abfd, execp->a_text + (EXEC_BYTES_SIZE - GEMDOS_HEADER_SIZE),
++		exec_bytes->g_text);
++  bfd_h_put_32 (abfd, execp->a_data, exec_bytes->g_data);
++  bfd_h_put_32 (abfd, execp->a_bss, exec_bytes->g_bss);
++
++  /* The OS' notion of the size of the symbol table is another than
++     the bfd library's.  We have to fill in the size of the table
++     itself plus the size of the string table but only if we have not written
++     a traditional symbol table.  If we have written a traditional symbol
++     table we know the size.  */
++  if (myinfo->dri_symtab_size != 0)
++    symtab_size = myinfo->dri_symtab_size;
++  else
++    symtab_size = myinfo->tparel_pos - N_SYMOFF (execp);
++
++  bfd_h_put_32 (abfd, symtab_size, exec_bytes->g_syms);
++
++  bfd_h_put_32 (abfd, 0x4d694e54, exec_bytes->g_extmagic);
++  bfd_h_put_32 (abfd, myinfo->prg_flags, exec_bytes->g_flags);
++  bfd_h_put_16 (abfd, 0, exec_bytes->g_abs);
++
++  /* Generate the jump instruction to the entry point.  In m68k
++     assembler mnemnonics it looks more or less like this:
++
++       move.l  exec_bytes->e_entry(pc),d0
++       jmp     -6(pc,d0.l)
++
++     Sorry for the wrong syntax.  As a real assembler addict I
++     never actually use an assembler.  I edit my binaries manually
++     with a hex editor, looks much cooler and it strengthens your
++     abstraction abilities.  */
++
++  exec_bytes->g_jump_entry[0] = 0x20;
++  exec_bytes->g_jump_entry[1] = 0x3a;
++  exec_bytes->g_jump_entry[2] = 0x00;
++  exec_bytes->g_jump_entry[3] = 0x1a;
++  exec_bytes->g_jump_entry[4] = 0x4e;
++  exec_bytes->g_jump_entry[5] = 0xfb;
++  exec_bytes->g_jump_entry[6] = 0x08;
++  exec_bytes->g_jump_entry[7] = 0xfa;
++
++  bfd_h_put_32 (abfd, myinfo->tparel_pos, exec_bytes->g_tparel_pos);
++  bfd_h_put_32 (abfd, myinfo->tparel_size, exec_bytes->g_tparel_size);
++  bfd_h_put_32 (abfd, myinfo->stkpos, exec_bytes->g_stkpos);
++
++  /* If there are no symbols, pretend they are in GNU format.  */
++  if (symtab_size == 0)
++    myinfo->symbol_format = _MINT_SYMBOL_FORMAT_GNU;
++
++  bfd_h_put_32 (abfd, myinfo->symbol_format, exec_bytes->g_symbol_format);
++
++  memset (&exec_bytes->g_pad0, 0, sizeof (exec_bytes->g_pad0));
++
++  /* The standard stuff.  */
++  NAME(aout, swap_exec_header_out) (abfd, execp, exec_bytes);
++  if (myinfo->symbol_format != _MINT_SYMBOL_FORMAT_GNU)
++    PUT_WORD (abfd, 0, exec_bytes->e_syms);
++
++  if (bfd_seek (abfd, (file_ptr) 0, SEEK_SET) != 0)
++    return false;
++
++  if (bfd_bwrite (exec_bytes, (bfd_size_type) EXEC_BYTES_SIZE, abfd)
++      != EXEC_BYTES_SIZE)
++    return false;
++
++  /* Override the stack size.  */
++  if (myinfo->override_stack_size && myinfo->stkpos)
++  {
++    bfd_byte big_endian_stack_size[4];
++
++    bfd_put_32 (abfd, myinfo->stack_size, &big_endian_stack_size);
++
++    if (bfd_seek (abfd, (file_ptr) myinfo->stkpos, SEEK_SET) != 0)
++      return false;
++
++    if (bfd_bwrite (big_endian_stack_size, 4, abfd) != 4)
++      return false;
++  }
++
++  return true;
++}
++
++/* Write an object file.
++   Section contents have already been written.  We write the
++   file header, symbols, and relocation.  */
++
++#define MY_write_object_contents MY (write_object_contents)
++
++static bool
++MY (write_object_contents) (bfd *abfd)
++{
++  struct external_exec exec_bytes;
++  struct internal_exec *execp = exec_hdr (abfd);
++
++  BFD_ASSERT (obj_aout_ext (abfd) != NULL);
++
++  obj_reloc_entry_size (abfd) = RELOC_STD_SIZE;
++
++  /* Most of the following code come from the WRITE_HEADERS macro
++     found in libaout.h.  */
++
++  if (adata(abfd).magic == undecided_magic)
++    NAME (aout, adjust_sizes_and_vmas) (abfd);
++
++  execp->a_syms = bfd_get_symcount (abfd) * EXTERNAL_NLIST_SIZE;
++  execp->a_entry = bfd_get_start_address (abfd);
++
++  execp->a_trsize = ((obj_textsec (abfd)->reloc_count) *
++		     obj_reloc_entry_size (abfd));
++  execp->a_drsize = ((obj_datasec (abfd)->reloc_count) *
++		     obj_reloc_entry_size (abfd));
++
++  /* Now write out reloc info, followed by syms and strings.  */
++
++  if (bfd_get_outsymbols (abfd) != NULL
++      && bfd_get_symcount (abfd) != 0)
++    {
++      if (bfd_seek (abfd, (file_ptr) (N_SYMOFF(execp)), SEEK_SET) != 0)
++	return false;
++
++      if (! NAME (aout, write_syms) (abfd))
++	return false;
++    }
++
++  if (bfd_seek (abfd, (file_ptr) (N_TRELOFF (execp)), SEEK_SET) != 0)
++    return false;
++  if (!NAME (aout, squirt_out_relocs) (abfd, obj_textsec (abfd)))
++    return false;
++
++  if (bfd_seek (abfd, (file_ptr) (N_DRELOFF (execp)), SEEK_SET) != 0)
++    return false;
++  if (!NAME (aout, squirt_out_relocs) (abfd, obj_datasec (abfd)))
++    return false;
++
++  if (write_tparel (abfd, execp) == false)
++    return false;
++
++  if (write_exec_header (abfd, execp, &exec_bytes) == false)
++    return false;
++
++  return true;
++}
++
++/* Print private BFD data. Used by objdump -p.  */
++
++#define MY_bfd_print_private_bfd_data MY (print_private_bfd_data)
++
++static bool
++MY (print_private_bfd_data) (bfd *abfd, void *ptr)
++{
++  FILE *file = (FILE *) ptr;
++  struct mint_internal_info *myinfo = obj_aout_ext (abfd);
++  const char* symbol_format;
++  long stksize = 0;
++
++  fprintf (file, "\n");
++
++  fprintf (file, " GEMDOS flags: 0x%08lx\n", (unsigned long) myinfo->prg_flags);
++  fprintf (file, "Start address: 0x%08lx\n", (unsigned long) bfd_get_start_address (abfd));
++
++  /* Stack size.  */
++  if (myinfo->stkpos != 0)
++    {
++      if (bfd_seek (abfd, myinfo->stkpos, SEEK_SET) != 0
++	  || (bfd_bread (&stksize, sizeof(long), abfd) != sizeof(long)))
++	return false;
++
++      stksize = bfd_get_signed_32 (abfd, &stksize);
++    }
++  fprintf (file, "   Stack size: %ld\n", stksize);
++
++  /* Symbol format.  */
++  switch (myinfo->symbol_format)
++    {
++      case _MINT_SYMBOL_FORMAT_GNU: symbol_format = "stabs"; break;
++      case _MINT_SYMBOL_FORMAT_DRI: symbol_format = "DRI";   break;
++      default:			    symbol_format = "?";     break;
++    }
++  fprintf (file, "Symbol format: %s\n", symbol_format);
++
++  return true;
++}
++
++/* Special case for NAME (aout, get_section_contents)
++   It is not declared in libaout.h, neither implemented in aoutx.h.
++   Instead, a macro named aout_32_get_section_contents is defined in libaout.h.
++   So the default value of MY_get_section_contents provided by aout-target.h
++   is not correct, it has to be defined here with the right value.  */
++
++#define MY_get_section_contents aout_32_get_section_contents
++
++/* The following include will define MY (vec)
++   and a default implementation for all the MY_ functions
++   not overriden here.  */
++
++#include "aout-target.h"
++
++/* Set the GEMDOS executable flags.
++   It is called by the linker emulation script.  */
++
++bool
++bfd_m68kmint_set_extended_flags (bfd *abfd, flagword prg_flags)
++{
++  struct mint_internal_info *myinfo;
++
++  BFD_ASSERT(abfd->xvec == &MY (vec));
++  myinfo = obj_aout_ext (abfd);
++  BFD_ASSERT(myinfo != NULL);
++
++  myinfo->prg_flags = prg_flags;
++
++  return true;
++}
++
++/* Override the stack size.
++   It is called by the linker emulation script.  */
++
++bool
++bfd_m68kmint_set_stack_size (bfd *abfd, bfd_signed_vma stack_size)
++{
++  struct mint_internal_info *myinfo;
++
++  BFD_ASSERT(abfd->xvec == &MY (vec));
++  myinfo = obj_aout_ext (abfd);
++  BFD_ASSERT(myinfo != NULL);
++
++  myinfo->stack_size = stack_size;
++  myinfo->override_stack_size = true;
++
++  return true;
++}
++
++/* Add a TPA relocation entry.
++   It is called by BFD when linking the input sections, and by the
++   linker when it generates a reference to an address (in particular,
++   when building the constructors list).  */
++
++bool
++bfd_m68kmint_add_tpa_relocation_entry (bfd *abfd, bfd_vma address)
++{
++  struct mint_internal_info *myinfo;
++
++  BFD_ASSERT(abfd->xvec == &MY (vec));
++  myinfo = obj_aout_ext (abfd);
++  BFD_ASSERT(myinfo != NULL);
++
++  /* Enlarge the buffer if necessary.  */
++  if (myinfo->relocs_used * sizeof (bfd_vma) >= myinfo->relocs_allocated)
++    {
++      bfd_vma *newbuf;
++      myinfo->relocs_allocated += MINT_RELOC_CHUNKSIZE;
++      newbuf = bfd_realloc (myinfo->relocs, myinfo->relocs_allocated);
++      if (newbuf == NULL)
++	return false;
++
++      myinfo->relocs = newbuf;
++    }
++
++  /* The TPA relative relocation actually just adds the address of
++     the text segment (i. e. beginning of the executable in memory)
++     to the addresses at the specified locations.  This allows an
++     executable to be loaded everywhere in the address space without
++     memory management.  */
++  myinfo->relocs[myinfo->relocs_used++] = address;
++
++  return true;
++}
+diff --git a/bfd/reloc.c b/bfd/reloc.c
+index 36999fe9a40..1291d32f762 100644
+--- a/bfd/reloc.c
++++ b/bfd/reloc.c
+@@ -966,6 +966,18 @@ space consuming.  For each target:
+ 
+   data = (bfd_byte *) data + octets;
+   apply_reloc (abfd, data, howto, relocation);
++
++  extern const bfd_target m68k_aout_mintprg_vec;
++  if (flag == bfd_reloc_ok
++      && input_section->output_section->owner->xvec == &m68k_aout_mintprg_vec
++      && !howto->pc_relative && howto->size == 4)
++    {
++      bfd_vma tpa_address = input_section->output_section->vma
++	+ input_section->output_offset + reloc_entry->address;
++	
++      bfd_m68kmint_add_tpa_relocation_entry (input_section->output_section->owner, tpa_address);
++    }
++
+   return flag;
+ }
+ 
+diff --git a/bfd/targets.c b/bfd/targets.c
+index 3284bb88aa8..eba2e8f00a4 100644
+--- a/bfd/targets.c
++++ b/bfd/targets.c
+@@ -687,6 +687,7 @@ extern const bfd_target alpha_vms_vec;
+ extern const bfd_target alpha_vms_lib_txt_vec;
+ extern const bfd_target am33_elf32_linux_vec;
+ extern const bfd_target amdgcn_elf64_le_vec;
++extern const bfd_target aout0_be_vec;
+ extern const bfd_target aout_vec;
+ extern const bfd_target arc_elf32_be_vec;
+ extern const bfd_target arc_elf32_le_vec;
+@@ -776,6 +777,7 @@ extern const bfd_target m32r_elf32_linux_le_vec;
+ extern const bfd_target m68hc11_elf32_vec;
+ extern const bfd_target m68hc12_elf32_vec;
+ extern const bfd_target m68k_elf32_vec;
++extern const bfd_target m68k_aout_mintprg_vec;
+ extern const bfd_target s12z_elf32_vec;
+ extern const bfd_target mach_o_be_vec;
+ extern const bfd_target mach_o_le_vec;
+@@ -1007,6 +1009,7 @@ static const bfd_target * const _bfd_target_vector[] =
+ 
+ 	&am33_elf32_linux_vec,
+ 
++	&aout0_be_vec,
+ #if 0
+ 	/* Since a.out files lack decent magic numbers, no way to recognize
+ 	   which kind of a.out file it is.  */
+@@ -1135,6 +1138,7 @@ static const bfd_target * const _bfd_target_vector[] =
+ 	&m68hc12_elf32_vec,
+ 
+ 	&m68k_elf32_vec,
++	&m68k_aout_mintprg_vec,
+ 
+ 	&s12z_elf32_vec,
+ 
+diff --git a/binutils/Makefile.am b/binutils/Makefile.am
+index 751fbacce12..271351f1948 100644
+--- a/binutils/Makefile.am
++++ b/binutils/Makefile.am
+@@ -35,7 +35,7 @@ EXEEXT_FOR_BUILD = @EXEEXT_FOR_BUILD@
+ YACC = `if [ -f ../bison/bison ]; then echo ../bison/bison -y -L$(srcdir)/../bison/; else echo @YACC@; fi`
+ YFLAGS = -d
+ LEX = `if [ -f ../flex/flex ]; then echo ../flex/flex; else echo @LEX@; fi`
+-LEXLIB = @LEXLIB@
++#LEXLIB = @LEXLIB@
+ 
+ # Automake 1.10+ disables lex and yacc output file regeneration if
+ # maintainer mode is disabled.  Avoid this.
+diff --git a/binutils/Makefile.in b/binutils/Makefile.in
+index 78d32b350e3..69ca2386f69 100644
+--- a/binutils/Makefile.in
++++ b/binutils/Makefile.in
+@@ -519,7 +519,7 @@ LARGEFILE_CPPFLAGS = @LARGEFILE_CPPFLAGS@
+ LD = @LD@
+ LDFLAGS = @LDFLAGS@
+ LEX = `if [ -f ../flex/flex ]; then echo ../flex/flex; else echo @LEX@; fi`
+-LEXLIB = @LEXLIB@
++#LEXLIB = @LEXLIB@
+ LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
+ LIBICONV = @LIBICONV@
+ LIBINTL = @LIBINTL@
+diff --git a/binutils/ar.c b/binutils/ar.c
+index 0fdf0679b1c..d5692cd3835 100644
+--- a/binutils/ar.c
++++ b/binutils/ar.c
+@@ -596,6 +596,7 @@ decode_options (int argc, char **argv)
+           break;
+         case 'T':
+           make_thin_archive = true;
++          make_thin_archive = false;
+           break;
+         case 'D':
+           deterministic = true;
+diff --git a/binutils/configure b/binutils/configure
+index 149815542f9..8d4a6df90c4 100755
+--- a/binutils/configure
++++ b/binutils/configure
+@@ -13733,7 +13733,7 @@ fi
+ 
+ 
+ case "${host}" in
+-*-*-msdos* | *-*-go32* | *-*-mingw32* | *-*-cygwin* | *-*-windows*)
++*-*-msdos* | *-*-go32* | *-*-mingw32* | *-*-cygwin* | *-*-windows* | *-*-mint*)
+ 
+ $as_echo "#define USE_BINARY_FOPEN 1" >>confdefs.h
+  ;;
+diff --git a/binutils/dlltool.c b/binutils/dlltool.c
+index e2af2084700..e169c3fe50a 100644
+--- a/binutils/dlltool.c
++++ b/binutils/dlltool.c
+@@ -4152,7 +4152,7 @@ deduce_name (const char *prog_name)
+       if (*cp == '-')
+ 	dash = cp;
+       if (
+-#if defined(__DJGPP__) || defined (__CYGWIN__) || defined(__WIN32__)
++#if defined(__DJGPP__) || defined (__CYGWIN__) || defined(__WIN32__) || defined(__MINT__)
+ 	  *cp == ':' || *cp == '\\' ||
+ #endif
+ 	  *cp == '/')
+diff --git a/binutils/dllwrap.c b/binutils/dllwrap.c
+index 1be3cec72f1..65031a77e16 100644
+--- a/binutils/dllwrap.c
++++ b/binutils/dllwrap.c
+@@ -256,7 +256,7 @@ deduce_name (const char * name)
+ 	dash = cp;
+ 
+       if (
+-#if defined(__DJGPP__) || defined (__CYGWIN__) || defined(__WIN32__)
++#if defined(__DJGPP__) || defined (__CYGWIN__) || defined(__WIN32__) || defined(__MINT__)
+ 	  *cp == ':' || *cp == '\\' ||
+ #endif
+ 	  *cp == '/')
+diff --git a/binutils/objcopy.c b/binutils/objcopy.c
+index 37435733d76..11d7f5bb0d1 100644
+--- a/binutils/objcopy.c
++++ b/binutils/objcopy.c
+@@ -1691,6 +1691,9 @@ filter_symbols (bfd *abfd, bfd *obfd, asymbol **osyms,
+       if (keep && is_strip_section (abfd, bfd_asymbol_section (sym)))
+ 	keep = false;
+ 
++      if (strip_symbols != STRIP_ALL && (flags & BSF_CONSTRUCTOR))
++         keep = true;
++
+       if (keep)
+ 	{
+ 	  if (((flags & (BSF_GLOBAL | BSF_GNU_UNIQUE))
+diff --git a/binutils/resrc.c b/binutils/resrc.c
+index fff77f4f28a..89b16207aa5 100644
+--- a/binutils/resrc.c
++++ b/binutils/resrc.c
+@@ -388,7 +388,7 @@ look_for_default (char *cmd, const char *prefix, int end_prefix,
+   sprintf (cmd + end_prefix, "%s", DEFAULT_PREPROCESSOR_CMD);
+ 
+   if (
+-#if defined (__DJGPP__) || defined (__CYGWIN__) || defined (_WIN32)
++#if defined (__DJGPP__) || defined (__CYGWIN__) || defined (_WIN32) || defined (__MINT__)
+       strchr (cmd, '\\') ||
+ #endif
+       strchr (cmd, '/'))
+@@ -511,7 +511,7 @@ read_rc_file (const char *filename, const char *preprocessor,
+ 	  if (*cp == '-')
+ 	    dash = cp;
+ 	  if (
+-#if defined (__DJGPP__) || defined (__CYGWIN__) || defined(_WIN32)
++#if defined (__DJGPP__) || defined (__CYGWIN__) || defined(_WIN32) || defined (__MINT__)
+ 	      *cp == ':' || *cp == '\\' ||
+ #endif
+ 	      *cp == '/')
+diff --git a/config.rpath b/config.rpath
+index 4dea75957c2..863ce0dcc43 100755
+--- a/config.rpath
++++ b/config.rpath
+@@ -438,7 +438,7 @@ case "$host_os" in
+   bsdi4*)
+     ;;
+   cygwin* | mingw* | pw32*)
+-    shrext=.dll
++    shrext=.dll.a
+     ;;
+   darwin* | rhapsody*)
+     shrext=.dylib
+diff --git a/config.sub b/config.sub
+index dba16e84c77..44dc17bf9f1 100755
+--- a/config.sub
++++ b/config.sub
+@@ -823,6 +823,11 @@ case $basic_machine in
+ 		cpu=m68000
+ 		vendor=convergent
+ 		;;
++	*mintelf*)
++		cpu=m68k
++		vendor=atari
++		os=mintelf
++		;;
+ 	*mint | mint[0-9]* | *MiNT | *MiNT[0-9]*)
+ 		cpu=m68k
+ 		vendor=atari
+@@ -1491,6 +1496,9 @@ case $os in
+ 	ose*)
+ 		os=ose
+ 		;;
++	*mintelf)
++		os=mintelf
++		;;
+ 	*mint | mint[0-9]* | *MiNT | MiNT[0-9]*)
+ 		os=mint
+ 		;;
+@@ -1510,6 +1518,12 @@ case $os in
+ 			;;
+ 		esac
+ 		;;
++	-mintelf*)
++		os=mintelf
++		;;
++	-*mint | -mint[0-9]* | -*MiNT | -MiNT[0-9]*)
++		os=mint
++		;;
+ 	*)
+ 		# No normalization, but not necessarily accepted, that comes below.
+ 		;;
+diff --git a/configure b/configure
+index be433ef6d5d..9948569f870 100755
+--- a/configure
++++ b/configure
+@@ -3840,6 +3840,9 @@ case "${target}" in
+   i[3456789]86-*-rdos*)
+     noconfigdirs="$noconfigdirs gdb"
+     ;;
++  m68k-*-mint*)
++    noconfigdirs="$noconfigdirs gdb libdecnumber sim"
++    ;;
+   mmix-*-*)
+     noconfigdirs="$noconfigdirs gdb"
+     ;;
+diff --git a/configure.ac b/configure.ac
+index 1651cbf3b02..2806b047534 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1118,6 +1118,9 @@ case "${target}" in
+   i[[3456789]]86-*-rdos*)
+     noconfigdirs="$noconfigdirs gdb"
+     ;;
++  m68k-*-mint*)
++    noconfigdirs="$noconfigdirs gdb libdecnumber sim"
++    ;;
+   mmix-*-*)
+     noconfigdirs="$noconfigdirs gdb"
+     ;;
+diff --git a/gas/config/tc-m68k.c b/gas/config/tc-m68k.c
+index 9afa2448482..53886648801 100644
+--- a/gas/config/tc-m68k.c
++++ b/gas/config/tc-m68k.c
+@@ -27,10 +27,15 @@
+ 
+ #include "opcode/m68k.h"
+ #include "m68k-parse.h"
++
++#if defined (OBJ_ELF)
+ #include "elf/m68k.h"
++#endif
+ 
++#ifdef OBJ_ELF
+ static void m68k_elf_cons (int);
+ static void m68k_elf_gnu_attribute (int);
++#endif
+ 
+ /* This string holds the chars that always start a comment.  If the
+    pre-processor is disabled, these aren't very useful.  The macro
+@@ -360,9 +365,11 @@ struct m68k_it
+ 	 significance of some values (in the branch instruction, for
+ 	 example).  */
+       int pcrel_fix;
++#ifdef OBJ_ELF
+       /* Whether this expression needs special pic relocation, and if
+ 	 so, which.  */
+       enum pic_relocation pic_reloc;
++#endif
+     }
+   reloc[5];			/* Five is enough???  */
+ };
+@@ -423,7 +430,9 @@ add_fix (int width, struct m68k_exp *exp, int pc_rel, int pc_fix)
+   the_ins.reloc[the_ins.nrel].exp = exp->exp;
+   the_ins.reloc[the_ins.nrel].wid = width;
+   the_ins.reloc[the_ins.nrel].pcrel_fix = pc_fix;
++#ifdef OBJ_ELF
+   the_ins.reloc[the_ins.nrel].pic_reloc = exp->pic_reloc;
++#endif
+   the_ins.reloc[the_ins.nrel++].pcrel = pc_rel;
+ }
+ 
+@@ -866,15 +875,21 @@ const pseudo_typeS md_pseudo_table[] =
+   {"even", s_even, 0},
+   {"skip", s_space, 0},
+   {"proc", s_proc, 0},
++#if defined (TE_SUN3) || defined (OBJ_ELF)
+   {"align", s_align_bytes, 0},
++#endif
++#ifdef OBJ_ELF
+   {"swbeg", s_ignore, 0},
+   {"long", m68k_elf_cons, 4},
++#endif
+   {"extend", float_cons, 'x'},
+   {"ldouble", float_cons, 'x'},
+ 
+   {"arch", s_m68k_arch, 0},
+   {"cpu", s_m68k_cpu, 0},
++#ifdef OBJ_ELF
+   {"gnu_attribute", m68k_elf_gnu_attribute, 0},
++#endif
+ 
+   /* The following pseudo-ops are supported for MRI compatibility.  */
+   {"chip", s_chip, 0},
+@@ -936,7 +951,11 @@ const pseudo_typeS mote_pseudo_table[] =
+   {"dsb", s_space, 1},
+ 
+   {"xdef", s_globl, 0},
++#ifdef OBJ_ELF
+   {"align", s_align_bytes, 0},
++#else
++  {"align", s_align_ptwo, 0},
++#endif
+   {0, 0, 0}
+ };
+ 
+@@ -961,6 +980,7 @@ static char alt_notend_table[256];
+       || (*s == ':'						\
+ 	  && alt_notend_table[(unsigned char) s[1]])))
+ 
++#ifdef OBJ_ELF
+ 
+ /* Return zero if the reference to SYMBOL from within the same segment may
+    be relaxed.  */
+@@ -1186,6 +1206,60 @@ tc_m68k_fix_adjustable (fixS *fixP)
+     }
+ }
+ 
++#else /* !OBJ_ELF */
++
++/* Compute the relocation code for a fixup of SIZE bytes, using pc
++   relative relocation if PCREL is non-zero.  PIC says whether a special
++   pic relocation was requested.  */
++
++static bfd_reloc_code_real_type
++get_reloc_code (int size, int pcrel)
++{
++      if (pcrel)
++	{
++	  switch (size)
++	    {
++	    case 1:
++	      return BFD_RELOC_8_PCREL;
++	    case 2:
++	      return BFD_RELOC_16_PCREL;
++	    case 4:
++	      return BFD_RELOC_32_PCREL;
++	    }
++	}
++      else
++	{
++	  switch (size)
++	    {
++	    case 1:
++	      return BFD_RELOC_8;
++	    case 2:
++	      return BFD_RELOC_16;
++	    case 4:
++	      return BFD_RELOC_32;
++	    }
++	}
++
++  if (pcrel)
++    {
++	as_bad (_("Can not do %d byte pc-relative relocation"), size);
++    }
++  else
++    {
++	as_bad (_("Can not do %d byte relocation"), size);
++    }
++
++  return BFD_RELOC_NONE;
++}
++
++#define get_reloc_code(SIZE,PCREL,OTHER) (get_reloc_code)(SIZE, PCREL)
++
++/* PR gas/3041 Weak symbols are not relaxable
++   because they must be treated as extern.  */
++#define relaxable_symbol(symbol)   (!(S_IS_WEAK (symbol)))
++
++#endif /* OBJ_ELF */
++
+ arelent *
+ tc_gen_reloc (asection *section ATTRIBUTE_UNUSED, fixS *fixp)
+ {
+@@ -1288,6 +1362,39 @@ tc_gen_reloc (asection *section ATTRIBUTE_UNUSED, fixS *fixp)
+   reloc->sym_ptr_ptr = XNEW (asymbol *);
+   *reloc->sym_ptr_ptr = symbol_get_bfdsym (fixp->fx_addsy);
+   reloc->address = fixp->fx_frag->fr_address + fixp->fx_where;
++#ifndef OBJ_ELF
++  if (OUTPUT_FLAVOR == bfd_target_aout_flavour
++      && fixp->fx_addsy
++      && S_IS_WEAK (fixp->fx_addsy)
++      && ! bfd_is_und_section (S_GET_SEGMENT (fixp->fx_addsy)))
++    {
++      /* PR gas/3041 References to weak symbols must be treated as extern
++	 in order to be overridable by the linker, even if they are defined
++	 in the same object file. So the original addend must be written
++	 "as is" into the output section without further processing.
++	 The addend value must be hacked here in order to force
++	 bfd_install_relocation() to write the original value into the
++	 output section.
++	 1) MD_APPLY_SYM_VALUE() is set to 1 for m68k/a.out, so the symbol
++	 value has already been added to the addend in fixup_segment(). We
++	 have to remove it.
++	 2) bfd_install_relocation() will incorrectly treat this symbol as
++	 resolved, so it will write the symbol value plus its addend and
++	 section VMA. As a workaround we can tweak the addend value here in
++	 order to get the original value in the section after the call to
++	 bfd_install_relocation().  */
++      reloc->addend = fixp->fx_addnumber
++		      /* Fix because of MD_APPLY_SYM_VALUE() */
++		      - S_GET_VALUE (fixp->fx_addsy)
++		      /* Fix for bfd_install_relocation() */
++		      - (S_GET_VALUE (fixp->fx_addsy)
++			 + S_GET_SEGMENT (fixp->fx_addsy)->vma);
++    }
++  else if (fixp->fx_pcrel)
++    reloc->addend = fixp->fx_addnumber;
++  else
++    reloc->addend = 0;
++#else
+   if (!fixp->fx_pcrel)
+     reloc->addend = fixp->fx_addnumber;
+   else
+@@ -1295,6 +1402,7 @@ tc_gen_reloc (asection *section ATTRIBUTE_UNUSED, fixS *fixp)
+ 		     + fixp->fx_pcrel_adjust
+ 		     + fixp->fx_addnumber
+ 		     + md_pcrel_from (fixp));
++#endif
+ 
+   reloc->howto = bfd_reloc_type_lookup (stdoutput, code);
+   gas_assert (reloc->howto != 0);
+@@ -2586,9 +2694,12 @@ m68k_ip (char *instring)
+ 		      if (opP->reg == PC)
+ 			{
+ 			  if (opP->disp.size == SIZE_LONG
++#ifdef OBJ_ELF
+ 			      /* If the displacement needs pic
+ 				 relocation it cannot be relaxed.  */
+-			      || opP->disp.pic_reloc != pic_none)
++			      || opP->disp.pic_reloc != pic_none
++#endif
++			      )
+ 			    {
+ 			      addword (0x0170);
+ 			      add_fix ('l', &opP->disp, 1, 2);
+@@ -2753,9 +2864,12 @@ m68k_ip (char *instring)
+ 			       && opP->reg == PC
+ 			       && isvar (&opP->disp)
+ 			       && subs (&opP->disp) == NULL
++#ifdef OBJ_ELF
+ 			       /* If the displacement needs pic
+ 				  relocation it cannot be relaxed.  */
+-			       && opP->disp.pic_reloc == pic_none)
++			       && opP->disp.pic_reloc == pic_none
++#endif
++			       )
+ 			{
+ 			  /* The code in md_convert_frag_1 needs to be
+                              able to adjust nextword.  Call frag_grow
+@@ -2899,9 +3013,11 @@ m68k_ip (char *instring)
+ 		  if (isvar (&opP->disp)
+ 		      && !subs (&opP->disp)
+ 		      && adds (&opP->disp)
++#ifdef OBJ_ELF
+ 		      /* If the displacement needs pic relocation it
+ 			 cannot be relaxed.  */
+ 		      && opP->disp.pic_reloc == pic_none
++#endif
+ 		      && !flag_long_jumps
+ 		      && !strchr ("~%&$?", s[0]))
+ 		    {
+@@ -3068,9 +3184,12 @@ m68k_ip (char *instring)
+ 
+ 	      var_branch:
+ 	      if (subs (&opP->disp)	/* We can't relax it.  */
++#ifdef OBJ_ELF
+ 		  /* If the displacement needs pic relocation it cannot be
+ 		     relaxed.  */
+-		  || opP->disp.pic_reloc != pic_none)
++		  || opP->disp.pic_reloc != pic_none
++#endif
++		  || 0)
+ 		{
+ 		  if (!have_disp)
+ 		    as_warn (_("Can't use long branches on this architecture"));
+@@ -4299,8 +4418,10 @@ md_assemble (char *str)
+       current_label = NULL;
+     }
+ 
++#ifdef OBJ_ELF
+   /* Tie dwarf2 debug info to the address at the start of the insn.  */
+   dwarf2_emit_insn (0);
++#endif
+ 
+   if (the_ins.nfrag == 0)
+     {
+@@ -4350,6 +4471,8 @@ md_assemble (char *str)
+ 	  fixP->fx_pcrel_adjust = the_ins.reloc[m].pcrel_fix;
+ 	  if (the_ins.reloc[m].wid == 'B')
+ 	    fixP->fx_signed = 1;
++	  if (the_ins.reloc[m].pcrel)
++	    fixP->fx_signed = 1;
+ 	}
+       return;
+     }
+@@ -4670,9 +4793,11 @@ md_begin (void)
+ 
+   init_regtable ();
+ 
++#ifdef OBJ_ELF
+   record_alignment (text_section, 2);
+   record_alignment (data_section, 2);
+   record_alignment (bss_section, 2);
++#endif
+ }
+ 
+ 
+@@ -4688,7 +4813,9 @@ m68k_frob_label (symbolS *sym)
+   n->text = 0;
+   current_label = n;
+ 
++#ifdef OBJ_ELF
+   dwarf2_emit_label (sym);
++#endif
+ }
+ 
+ /* This is called when a value that is not an instruction is emitted.  */
+@@ -4792,6 +4919,7 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
+   if (fixP->fx_addsy == NULL && fixP->fx_pcrel == 0)
+     fixP->fx_done = 1;
+ 
++#ifdef OBJ_ELF
+   if (fixP->fx_addsy)
+     {
+       memset (buf, 0, fixP->fx_size);
+@@ -4828,6 +4956,15 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
+ 
+       return;
+     }
++#elif defined(OBJ_AOUT)
++  /* PR gas/3041 Do not fix frags referencing a weak symbol.  */
++  if (fixP->fx_addsy && S_IS_WEAK (fixP->fx_addsy))
++    {
++      memset (buf, 0, fixP->fx_size);
++      fixP->fx_addnumber = val;	/* Remember value for emit_reloc.  */
++      return;
++    }
++#endif
+ 
+   if (fixP->fx_r_type == BFD_RELOC_VTABLE_INHERIT
+       || fixP->fx_r_type == BFD_RELOC_VTABLE_ENTRY)
+@@ -7717,6 +7854,18 @@ md_undefined_symbol (char *name ATTRIBUTE_UNUSED)
+ valueT
+ md_section_align (segT segment ATTRIBUTE_UNUSED, valueT size)
+ {
++#ifdef OBJ_AOUT
++  /* For a.out, force the section size to be aligned.  If we don't do
++     this, BFD will align it for us, but it will not write out the
++     final bytes of the section.  This may be a bug in BFD, but it is
++     easier to fix it here since that is how the other a.out targets
++     work.  */
++  int align = bfd_section_alignment (segment);
++  valueT mask = ((valueT) 1 << align) - 1;
++
++  size = (size + mask) & ~mask;
++#endif
++
+   return size;
+ }
+ 
+@@ -7735,6 +7884,7 @@ md_pcrel_from (fixS *fixP)
+   return fixP->fx_where + fixP->fx_frag->fr_address - adjust;
+ }
+ 
++#ifdef OBJ_ELF
+ void
+ m68k_elf_final_processing (void)
+ {
+@@ -7940,6 +8090,7 @@ m68k_elf_gnu_attribute (int ignored ATTRIBUTE_UNUSED)
+ 	as_warn (_("unknown .gnu_attribute value"));
+     }
+ }
++#endif
+ 
+ int
+ tc_m68k_regname_to_dw2regnum (const char *regname)
+diff --git a/gas/config/tc-m68k.h b/gas/config/tc-m68k.h
+index 4ab62b16b1a..d1ca793bf25 100644
+--- a/gas/config/tc-m68k.h
++++ b/gas/config/tc-m68k.h
+@@ -27,7 +27,12 @@ struct fix;
+ 
+ #define TARGET_BYTES_BIG_ENDIAN 1
+ 
++#ifdef OBJ_ELF
+ #define TARGET_FORMAT "elf32-m68k"
++#endif
++#ifdef OBJ_AOUT
++#define TARGET_FORMAT "a.out-zero-big"
++#endif
+ #define TARGET_ARCH bfd_arch_m68k
+ 
+ #define tc_comment_chars m68k_comment_chars
+@@ -44,7 +49,11 @@ extern const char *m68k_comment_chars;
+ #endif
+ 
+ #ifndef REGISTER_PREFIX_OPTIONAL
++#if defined (OBJ_ELF)
+ #define REGISTER_PREFIX_OPTIONAL 0
++#else
++#define REGISTER_PREFIX_OPTIONAL 1
++#endif
+ #endif
+ 
+ extern void m68k_mri_mode_change (int);
+@@ -78,6 +87,7 @@ while (0)
+ #define RELAX_RELOC_PC16  BFD_RELOC_16_PCREL
+ #define RELAX_RELOC_PC32  BFD_RELOC_32_PCREL
+ 
++#ifdef OBJ_ELF
+ #define tc_fix_adjustable(X) tc_m68k_fix_adjustable(X)
+ extern int tc_m68k_fix_adjustable (struct fix *);
+ 
+@@ -92,6 +102,7 @@ extern int tc_m68k_fix_adjustable (struct fix *);
+ 
+ #define elf_tc_final_processing m68k_elf_final_processing
+ extern void m68k_elf_final_processing (void);
++#endif
+ 
+ #define DIFF_EXPR_OK
+ 
+@@ -119,7 +130,11 @@ extern struct relax_type md_relax_table[];
+ #define TARGET_USE_CFIPOP 1
+ 
+ #define DWARF2_DEFAULT_RETURN_COLUMN 24
++#ifdef TE_MINT
++#define DWARF2_CIE_DATA_ALIGNMENT (-2)
++#else
+ #define DWARF2_CIE_DATA_ALIGNMENT (-4)
++#endif
+ 
+ #define tc_regname_to_dw2regnum tc_m68k_regname_to_dw2regnum
+ extern int tc_m68k_regname_to_dw2regnum (const char *regname);
+diff --git a/gas/config/te-mint.h b/gas/config/te-mint.h
+new file mode 100644
+index 00000000000..ba1def1712e
+--- /dev/null
++++ b/gas/config/te-mint.h
+@@ -0,0 +1,30 @@
++/* Copyright (C) 2008-2017 Free Software Foundation, Inc.
++
++   This file is part of GAS, the GNU Assembler.
++
++   GAS is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as
++   published by the Free Software Foundation; either version 3,
++   or (at your option) any later version.
++
++   GAS is distributed in the hope that it will be useful, but
++   WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
++   the GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with GAS; see the file COPYING.  If not, write to the Free
++   Software Foundation, 51 Franklin Street - Fifth Floor, Boston, MA
++   02110-1301, USA.  */
++
++#define TE_MINT
++
++#define LOCAL_LABELS_DOLLAR 1
++#define LOCAL_LABELS_FB 1
++
++/* These define interfaces.  */
++#ifdef   OBJ_HEADER
++#include OBJ_HEADER
++#else
++#include "obj-format.h"
++#endif
+diff --git a/gas/configure.tgt b/gas/configure.tgt
+index 62f806bdfe8..63f8ddaa65f 100644
+--- a/gas/configure.tgt
++++ b/gas/configure.tgt
+@@ -294,6 +294,8 @@ case ${generic_target} in
+   m68k-*-linux-*)			fmt=elf em=linux ;;
+   m68k-*-uclinux*)			fmt=elf em=uclinux ;;
+   m68k-*-gnu*)				fmt=elf ;;
++  m68k-*-mintelf*)			fmt=elf em=mint bfd_gas=yes ;;
++  m68k-*-mint*)				fmt=aout em=mint bfd_gas=yes ;;
+   m68k-*-netbsd*)			fmt=elf em=nbsd ;;
+   m68k-*-haiku*)			fmt=elf em=haiku ;;
+ 
+diff --git a/gas/testsuite/gas/m68k/br-isaa.d b/gas/testsuite/gas/m68k/br-isaa.d
+index cccb4848938..21f048bce3d 100644
+--- a/gas/testsuite/gas/m68k/br-isaa.d
++++ b/gas/testsuite/gas/m68k/br-isaa.d
+@@ -1,6 +1,7 @@
+ #name: br-isaa.d
+ #objdump: -dr
+ #as: -march=isaa -pcrel
++#not-target: m68k-*-mint*
+ 
+ .*:     file format .*
+ 
+diff --git a/gas/testsuite/gas/m68k/br-isab.d b/gas/testsuite/gas/m68k/br-isab.d
+index bcac0d22ed5..7187de7b329 100644
+--- a/gas/testsuite/gas/m68k/br-isab.d
++++ b/gas/testsuite/gas/m68k/br-isab.d
+@@ -1,6 +1,7 @@
+ #name: br-isab.d
+ #objdump: -dr
+ #as: -march=isab -pcrel
++#not-target: m68k-*-mint*
+ 
+ .*:     file format .*
+ 
+diff --git a/gas/testsuite/gas/m68k/br-isac.d b/gas/testsuite/gas/m68k/br-isac.d
+index c876abb0c2e..3eeb16f5345 100644
+--- a/gas/testsuite/gas/m68k/br-isac.d
++++ b/gas/testsuite/gas/m68k/br-isac.d
+@@ -1,6 +1,7 @@
+ #name: br-isac.d
+ #objdump: -dr
+ #as: -march=isac -pcrel
++#not-target: m68k-*-mint*
+ 
+ .*:     file format .*
+ 
+diff --git a/include/aout/aout64.h b/include/aout/aout64.h
+index 1fc1dc6e4d6..bb556cecf0d 100644
+--- a/include/aout/aout64.h
++++ b/include/aout/aout64.h
+@@ -212,9 +212,7 @@ struct external_exec
+    up to a N_SEGSIZE boundary for pure or pageable files.  */
+ #ifndef N_DATADDR
+ #define N_DATADDR(x) \
+-  (N_MAGIC (x) == IMAGIC						\
+-   ? (bfd_vma) 0							\
+-   : N_MAGIC (x) == OMAGIC						\
++  (N_MAGIC (x) == OMAGIC						\
+    ? (N_TXTADDR (x) + N_TXTSIZE (x))					\
+    : (N_SEGSIZE (x) + ((N_TXTADDR (x) + N_TXTSIZE (x) - 1)		\
+ 		       & ~ (bfd_vma) (N_SEGSIZE (x) - 1))))
+diff --git a/include/filenames.h b/include/filenames.h
+index 6c72c422edd..596128f648e 100644
+--- a/include/filenames.h
++++ b/include/filenames.h
+@@ -33,7 +33,7 @@ extern "C" {
+ #endif
+ 
+ #if defined(__MSDOS__) || (defined(_WIN32) && ! defined(__CYGWIN__)) || \
+-    defined(__OS2__)
++    defined(__OS2__) || defined (__MINT__)
+ #  ifndef HAVE_DOS_BASED_FILE_SYSTEM
+ #    define HAVE_DOS_BASED_FILE_SYSTEM 1
+ #  endif
+diff --git a/include/getopt.h b/include/getopt.h
+index d8103f97483..5b1d8217065 100644
+--- a/include/getopt.h
++++ b/include/getopt.h
+@@ -105,7 +105,7 @@ struct option
+    to find the declaration so provide a fully prototyped one.  If it
+    is 1, we found it so don't provide any declaration at all.  */
+ #if !HAVE_DECL_GETOPT
+-#if defined (__GNU_LIBRARY__) || defined (HAVE_DECL_GETOPT)
++#if defined (__GNU_LIBRARY__) || defined (__MINT__) || defined (HAVE_DECL_GETOPT)
+ /* Many other libraries have conflicting prototypes for getopt, with
+    differences in the consts, in unistd.h.  To avoid compilation
+    errors, only prototype getopt for the GNU C library.  */
+diff --git a/ld/Makefile.am b/ld/Makefile.am
+index d31021c13e2..36447de65ab 100644
+--- a/ld/Makefile.am
++++ b/ld/Makefile.am
+@@ -318,6 +318,9 @@ ALL_EMULATION_SOURCES = \
+ 	em68hc12elfb.c \
+ 	em68kelf.c \
+ 	em68kelfnbsd.c \
++	em68kaout.c \
++	em68kmintelf.c \
++	em68kmint.c \
+ 	em9s12zelf.c \
+ 	emcorepe.c \
+ 	emn10200.c \
+diff --git a/ld/Makefile.in b/ld/Makefile.in
+index ee0c98f65b0..5537e731f15 100644
+--- a/ld/Makefile.in
++++ b/ld/Makefile.in
+@@ -815,6 +815,9 @@ ALL_EMULATION_SOURCES = \
+ 	em68hc12elfb.c \
+ 	em68kelf.c \
+ 	em68kelfnbsd.c \
++	em68kaout.c \
++	em68kmintelf.c \
++	em68kmint.c \
+ 	em9s12zelf.c \
+ 	emcorepe.c \
+ 	emn10200.c \
+@@ -1492,6 +1495,9 @@ distclean-compile:
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/em68hc12elfb.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/em68kelf.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/em68kelfnbsd.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/em68kaout.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/em68kmintelf.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/em68kmint.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/em9s12zelf.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/emcorepe.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/emmo.Po@am__quote@
+diff --git a/ld/configure b/ld/configure
+index e58fb7f3a35..ce64a54ac51 100755
+--- a/ld/configure
++++ b/ld/configure
+@@ -16715,7 +16715,7 @@ done
+ 
+ 
+ case "${host}" in
+-*-*-msdos* | *-*-go32* | *-*-mingw32* | *-*-cygwin* | *-*-windows*)
++*-*-msdos* | *-*-go32* | *-*-mingw32* | *-*-cygwin* | *-*-windows* | *-*-mint*)
+ 
+ $as_echo "#define USE_BINARY_FOPEN 1" >>confdefs.h
+  ;;
+diff --git a/ld/configure.tgt b/ld/configure.tgt
+index 2bae9099b6a..a05ff0571b1 100644
+--- a/ld/configure.tgt
++++ b/ld/configure.tgt
+@@ -491,6 +491,10 @@ m68hc11-*-*|m6811-*-*)	targ_emul=m68hc11elf
+ m68hc12-*-*|m6812-*-*)	targ_emul=m68hc12elf
+ 			targ_extra_emuls="m68hc12elfb m68hc11elf m68hc11elfb"
+ 			;;
++m68*-*-mintelf*)	targ_emul=m68kmintelf
++			;;
++m68*-*-mint*)		targ_emul=m68kmint
++			;;
+ m68*-*-netbsd*)	targ_emul=m68kelfnbsd
+ 			;;
+ m68*-*-haiku*)		targ_emul=m68kelf
+diff --git a/ld/emulparams/elf_i386.sh b/ld/emulparams/elf_i386.sh
+index ae17bb4b3f7..b0459450c59 100644
+--- a/ld/emulparams/elf_i386.sh
++++ b/ld/emulparams/elf_i386.sh
+@@ -37,6 +37,10 @@ case "$target" in
+ 	LIBPATH_SUFFIX=32
+ 	LIBPATH_SUFFIX_SKIP=64
+ 	;;
++      *64*)
++	LIBPATH_SUFFIX=64
++	LIBPATH_SUFFIX_SKIP=32
++	;;
+     esac
+     ;;
+ esac
+diff --git a/ld/emulparams/m68kaout.sh b/ld/emulparams/m68kaout.sh
+new file mode 100644
+index 00000000000..09e6c72b4bd
+--- /dev/null
++++ b/ld/emulparams/m68kaout.sh
+@@ -0,0 +1,6 @@
++SCRIPT_NAME=aout
++OUTPUT_FORMAT="a.out-zero-big"
++TEXT_START_ADDR=0x2020
++TARGET_PAGE_SIZE=0x2000
++SEGMENT_SIZE=0x20000
++ARCH=m68k
+diff --git a/ld/emulparams/m68kmint.sh b/ld/emulparams/m68kmint.sh
+new file mode 100644
+index 00000000000..4cb45edbeb8
+--- /dev/null
++++ b/ld/emulparams/m68kmint.sh
+@@ -0,0 +1,6 @@
++SCRIPT_NAME=m68kmint
++OUTPUT_FORMAT="a.out-mintprg"
++RELOCATEABLE_OUTPUT_FORMAT="a.out-zero-big"
++TEXT_START_ADDR=0xe4
++ARCH=m68k
++EXTRA_EM_FILE=mint
+diff --git a/ld/emulparams/m68kmintelf.sh b/ld/emulparams/m68kmintelf.sh
+new file mode 100644
+index 00000000000..54d9df6f058
+--- /dev/null
++++ b/ld/emulparams/m68kmintelf.sh
+@@ -0,0 +1,6 @@
++SCRIPT_NAME=m68kmintelf
++OUTPUT_FORMAT="a.out-mintprg"
++RELOCATEABLE_OUTPUT_FORMAT="a.out-zero-big"
++TEXT_START_ADDR=0xe4
++ARCH=m68k
++EXTRA_EM_FILE=mint
+diff --git a/ld/emultempl/mint.em b/ld/emultempl/mint.em
+new file mode 100644
+index 00000000000..d3535a261d7
+--- /dev/null
++++ b/ld/emultempl/mint.em
+@@ -0,0 +1,330 @@
++# This shell script emits a C file. -*- C -*-
++#   Copyright (C) 2006-2017 Free Software Foundation, Inc.
++#
++# This file is part of the GNU Binutils.
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 3 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
++# MA 02110-1301, USA.
++#
++
++# This file is sourced from generic.em
++#
++fragment <<EOF
++
++#include "getopt.h"
++#include "ldgram.h"
++
++/* Standard GEMDOS program flags.  */
++#define _MINT_F_FASTLOAD      0x01    /* Don't clear heap.  */
++#define _MINT_F_ALTLOAD       0x02    /* OK to load in alternate RAM.  */
++#define _MINT_F_ALTALLOC      0x04    /* OK to malloc from alt. RAM.  */
++#define _MINT_F_BESTFIT       0x08    /* Load with optimal heap size.  */
++/* The memory flags are mutually exclusive.  */
++#define _MINT_F_MEMPROTECTION 0xf0    /* Masks out protection bits.  */
++#define _MINT_F_MEMPRIVATE    0x00    /* Memory is private.  */
++#define _MINT_F_MEMGLOBAL     0x10    /* Read/write access to mem allowed.  */
++#define _MINT_F_MEMSUPER      0x20    /* Only supervisor access allowed.  */
++#define _MINT_F_MEMREADABLE   0x30    /* Any read access OK.  */
++#define _MINT_F_SHTEXT        0x800   /* Program's text may be shared */
++
++/* Option flags.  */
++static flagword prg_flags = (_MINT_F_FASTLOAD | _MINT_F_ALTLOAD
++			     | _MINT_F_ALTALLOC | _MINT_F_MEMPRIVATE);
++
++/* If override_stack_size is TRUE, then the executable stack size
++ * must be overriden with the value of stack_size.  */
++static bool override_stack_size = false;
++static bfd_signed_vma stack_size;
++
++/* MiNT format extra command line options.  */
++
++/* Used for setting flags in the MiNT header.  */
++#define OPTION_FASTLOAD (300)
++#define OPTION_NO_FASTLOAD (OPTION_FASTLOAD + 1)
++#define OPTION_FASTRAM (OPTION_NO_FASTLOAD + 1)
++#define OPTION_NO_FASTRAM (OPTION_FASTRAM + 1)
++#define OPTION_FASTALLOC (OPTION_NO_FASTRAM + 1)
++#define OPTION_NO_FASTALLOC (OPTION_FASTALLOC + 1)
++#define OPTION_BESTFIT (OPTION_NO_FASTALLOC + 1)
++#define OPTION_NO_BESTFIT (OPTION_BESTFIT + 1)
++#define OPTION_BASEREL (OPTION_NO_BESTFIT + 1)
++#define OPTION_NO_BASEREL (OPTION_BASEREL + 1)
++#define OPTION_MEM_PRIVATE (OPTION_NO_BASEREL + 1)
++#define OPTION_MEM_GLOBAL (OPTION_MEM_PRIVATE + 1)
++#define OPTION_MEM_SUPER (OPTION_MEM_GLOBAL + 1)
++#define OPTION_MEM_READONLY (OPTION_MEM_SUPER + 1)
++#define OPTION_PRG_FLAGS (OPTION_MEM_READONLY + 1)
++#define OPTION_STACK (OPTION_PRG_FLAGS + 1)
++
++static void
++gld${EMULATION_NAME}_add_options
++  (int ns ATTRIBUTE_UNUSED, char **shortopts ATTRIBUTE_UNUSED, int nl,
++    struct option **longopts, int nrl ATTRIBUTE_UNUSED,
++    struct option **really_longopts ATTRIBUTE_UNUSED)
++{
++  static const struct option xtra_long[] = {
++    {"mfastload", no_argument, NULL, OPTION_FASTLOAD},
++    {"mno-fastload", no_argument, NULL, OPTION_NO_FASTLOAD},
++    {"mfastram", no_argument, NULL, OPTION_FASTRAM},
++    {"mno-fastram", no_argument, NULL, OPTION_NO_FASTRAM},
++    {"maltram", no_argument, NULL, OPTION_FASTRAM},
++    {"mno-altram", no_argument, NULL, OPTION_NO_FASTRAM},
++    {"mfastalloc", no_argument, NULL, OPTION_FASTALLOC},
++    {"mno-fastalloc", no_argument, NULL, OPTION_NO_FASTALLOC},
++    {"maltalloc", no_argument, NULL, OPTION_FASTALLOC},
++    {"mno-altalloc", no_argument, NULL, OPTION_NO_FASTALLOC},
++    {"mbest-fit", no_argument, NULL, OPTION_BESTFIT},
++    {"mno-best-fit", no_argument, NULL, OPTION_NO_BESTFIT},
++    {"mbaserel", no_argument, NULL, OPTION_BASEREL},
++    {"mno-baserel", no_argument, NULL, OPTION_NO_BASEREL},
++    {"mshared-text", no_argument, NULL, OPTION_BASEREL},
++    {"mno-shared-text", no_argument, NULL, OPTION_NO_BASEREL},
++    {"msharable-text", no_argument, NULL, OPTION_BASEREL},
++    {"mno-sharable-text", no_argument, NULL, OPTION_NO_BASEREL},
++    /* Memory protection bits.  */
++    {"mprivate-memory", no_argument, NULL, OPTION_MEM_PRIVATE },
++    {"mglobal-memory", no_argument, NULL, OPTION_MEM_GLOBAL},
++    {"msuper-memory", no_argument, NULL, OPTION_MEM_SUPER},
++    {"mreadable-memory", no_argument, NULL, OPTION_MEM_READONLY},
++    {"mreadonly-memory", no_argument, NULL, OPTION_MEM_READONLY},
++    {"mprg-flags", required_argument, NULL, OPTION_PRG_FLAGS},
++    {"stack", required_argument, NULL, OPTION_STACK},
++    {NULL, no_argument, NULL, 0}
++  };
++
++  *longopts = (struct option *)
++    xrealloc (*longopts, nl * sizeof (struct option) + sizeof (xtra_long));
++  memcpy (*longopts + nl, &xtra_long, sizeof (xtra_long));
++}
++
++static bool
++gld${EMULATION_NAME}_handle_option (int optc)
++{
++  switch (optc)
++    {
++    default:
++      return false;
++
++    case OPTION_FASTLOAD:
++      prg_flags |= _MINT_F_FASTLOAD;
++      break;
++
++    case OPTION_NO_FASTLOAD:
++      prg_flags &= ~_MINT_F_FASTLOAD;
++      break;
++
++    case OPTION_FASTRAM:
++      prg_flags |= _MINT_F_ALTLOAD;
++      break;
++
++    case OPTION_NO_FASTRAM:
++      prg_flags &= ~_MINT_F_ALTLOAD;
++      break;
++
++    case OPTION_FASTALLOC:
++      prg_flags |= _MINT_F_ALTALLOC;
++      break;
++
++    case OPTION_NO_FASTALLOC:
++      prg_flags &= ~_MINT_F_ALTALLOC;
++      break;
++
++    case OPTION_BESTFIT:
++      prg_flags |= _MINT_F_BESTFIT;
++      break;
++
++    case OPTION_NO_BESTFIT:
++      prg_flags &= ~_MINT_F_BESTFIT;
++      break;
++
++    case OPTION_BASEREL:
++      prg_flags |= _MINT_F_SHTEXT;
++      break;
++
++    case OPTION_NO_BASEREL:
++      prg_flags &= ~_MINT_F_SHTEXT;
++      break;
++
++    case OPTION_MEM_PRIVATE:
++      prg_flags &= ~_MINT_F_MEMPROTECTION;
++      break;
++
++    case OPTION_MEM_GLOBAL:
++      prg_flags &= ~_MINT_F_MEMPROTECTION;
++      prg_flags |= _MINT_F_MEMPRIVATE;
++      break;
++
++    case OPTION_MEM_SUPER:
++      prg_flags &= ~_MINT_F_MEMPROTECTION;
++      prg_flags |= _MINT_F_MEMSUPER;
++      break;
++
++    case OPTION_MEM_READONLY:
++      prg_flags &= ~_MINT_F_MEMPROTECTION;
++      prg_flags |= _MINT_F_MEMREADABLE;
++      break;
++
++    case OPTION_PRG_FLAGS:
++      {
++	char* tail;
++	unsigned long flag_value = strtoul (optarg, &tail, 0);
++
++	if (*tail != '\0')
++	  einfo (_("%P: warning: ignoring invalid program flags %s\n"), optarg);
++	else
++	  prg_flags = flag_value;
++
++	break;
++      }
++    case OPTION_STACK:
++      {
++	char* tail;
++	long size = strtol (optarg, &tail, 0);
++
++	if (*tail == 'K' || *tail == 'k')
++	  {
++	    size *= 1024;
++	    ++tail;
++	  }
++	else if (*tail == 'M' || *tail == 'm')
++	  {
++	    size *= 1024*1024;
++	    ++tail;
++	  }
++
++	if (*tail != '\0')
++	  einfo (_("%P: warning: ignoring invalid stack size %s\n"), optarg);
++	else
++	{
++	  stack_size = (bfd_signed_vma) size;
++	  override_stack_size = true;
++	}
++
++	break;
++      }
++    }
++  return true;
++}
++
++/* This callback is called when ld is invoked
++   with the --help and --target-help options.  */
++
++static void
++gld_${EMULATION_NAME}_list_options (FILE *file)
++{
++  fprintf (file, _("  --m[no-]fastload            Enable/Disable not cleaning the heap on startup\n"));
++  fprintf (file, _("  --m[no-]altram, --m[no-]fastram\n"));
++  fprintf (file, _("                              Enable/Disable loading into alternate RAM\n"));
++  fprintf (file, _("  --m[no-]altalloc, --m[no-]fastalloc\n"));
++  fprintf (file, _("                              Enable/Disable malloc from alternate RAM\n"));
++  fprintf (file, _("  --m[no-]best-fit            Enable/Disable loading with optimal heap size\n"));
++  fprintf (file, _("  --m[no-]sharable-text, --m[no-]shared-text, --m[no-]baserel\n"));
++  fprintf (file, _("                              Enable/Disable sharing the text segment\n"));
++  fprintf (file, "\n");
++  fprintf (file, _("The following memory options are mutually exclusive:\n"));
++  fprintf (file, _("  --mprivate-memory           Process memory is not accessible\n"));
++  fprintf (file, _("  --mglobal-memory            Process memory is readable and writable\n"));
++  fprintf (file, _("  --msuper-memory             Process memory is accessible in supervisor mode\n"));
++  fprintf (file, _("  --mreadonly-memory, --mreadable-memory\n"));
++  fprintf (file, _("                              Process memory is readable but not writable\n"));
++  fprintf (file, "\n");
++  fprintf (file, _("  --mprg-flags <value>        Set all the flags with an integer raw value\n"));
++  fprintf (file, _("  --stack <size>              Override the stack size (suffix k or M allowed)\n"));
++}
++
++/* This callback is called by lang_for_each_statement. It checks that the
++   output sections speficied in the linker script are compatible with the MiNT
++   executable format.  */
++
++static void
++gld${EMULATION_NAME}_check_output_sections (lang_statement_union_type *s)
++{
++  if (s->header.type == lang_output_section_statement_enum)
++    {
++      lang_output_section_statement_type *oss = &s->output_section_statement;
++
++      if (strcmp(oss->name, ".text") == 0 && oss->bfd_section->vma != ${TEXT_START_ADDR})
++	einfo (_("%F%P: the VMA of section %A must be 0x%V, but actual value is 0x%V\n"),
++	  oss->bfd_section, ${TEXT_START_ADDR}, oss->bfd_section->vma);
++      else if (strcmp(oss->name, ".data") == 0 && oss->addr_tree != NULL)
++	einfo (_("%F%P: the VMA of section %A must not be specified\n"),
++	  oss->bfd_section);
++      else if (strcmp(oss->name, ".bss") == 0 && oss->addr_tree != NULL)
++	einfo (_("%F%P: the VMA of section %A must not be specified\n"),
++	  oss->bfd_section);
++    }
++}
++
++/* This callback is called by lang_for_each_statement. It looks for the data
++   statements of type REL generated by the linker, and adds a TPA relocation
++   entry for them. This is used by the CONSTRUCTORS list.  */
++
++static void
++gld${EMULATION_NAME}_add_tpa_relocs (lang_statement_union_type *s)
++{
++  if (s->header.type == lang_data_statement_enum)
++    {
++      lang_data_statement_type *ds = &s->data_statement;
++
++      if (ds->exp->type.node_code == REL)
++	{
++	  if (ds->type == LONG)
++	    {
++	      bfd_vma tpa_address = ds->output_section->vma + ds->output_offset;
++	      if (!bfd_m68kmint_add_tpa_relocation_entry(link_info.output_bfd, tpa_address))
++		einfo (_("%F%P:%B: unable to add a relocation entry\n"), link_info.output_bfd);
++	    }
++	    else
++	    {
++	      einfo (_("%F%P:%B: invalid size for TPA relocation entry in section %A, offset 0x%V\n"),
++		link_info.output_bfd, ds->output_section, ds->output_offset);
++	    }
++	}
++    }
++}
++
++/* Final emulation specific call.  */
++
++static void
++gld${EMULATION_NAME}_finish (void)
++{
++  /* Do nothing if we are not generating a MiNT executable (ex: binary).  */
++  if (strcmp (bfd_get_target (link_info.output_bfd), "${OUTPUT_FORMAT}") != 0)
++    return;
++
++  /* Check the output sections.  */
++  lang_for_each_statement (gld${EMULATION_NAME}_check_output_sections);
++
++  /* Set the GEMDOS executable header flags.  */
++  if (!bfd_m68kmint_set_extended_flags (link_info.output_bfd, prg_flags))
++    einfo (_("%F%P:%B: unable to set the header flags\n"), link_info.output_bfd);
++
++  /* Override the stack size.  */
++  if (override_stack_size)
++    if (!bfd_m68kmint_set_stack_size (link_info.output_bfd, stack_size))
++      einfo (_("%F%P:%B: unable to set the stack size\n"), link_info.output_bfd);
++
++  /* Generate TPA relocation entries for the data statements.  */
++  lang_for_each_statement (gld${EMULATION_NAME}_add_tpa_relocs);
++}
++
++EOF
++
++# Put these extra routines in ld_${EMULATION_NAME}_emulation
++#
++LDEMUL_ADD_OPTIONS=gld${EMULATION_NAME}_add_options
++LDEMUL_HANDLE_OPTION=gld${EMULATION_NAME}_handle_option
++LDEMUL_LIST_OPTIONS=gld_${EMULATION_NAME}_list_options
++LDEMUL_FINISH=gld${EMULATION_NAME}_finish
+diff --git a/ld/ldfile.c b/ld/ldfile.c
+index 731ae5f7aed..e97bb467ecf 100644
+--- a/ld/ldfile.c
++++ b/ld/ldfile.c
+@@ -342,7 +342,10 @@ ldfile_open_file_search (const char *arch,
+     {
+       if (entry->flags.sysrooted && IS_ABSOLUTE_PATH (entry->filename))
+ 	{
+-	  char *name = concat (ld_sysroot, entry->filename,
++	  char *name;
++	  if (strncmp(ld_sysroot, entry->filename, strlen(ld_sysroot)) == 0 && ldfile_try_open_bfd (entry->filename, entry))
++	return true;
++	  name = concat (ld_sysroot, entry->filename,
+ 			       (const char *) NULL);
+ 	  if (ldfile_try_open_bfd (name, entry))
+ 	    {
+diff --git a/ld/scripttempl/m68kmint.sc b/ld/scripttempl/m68kmint.sc
+new file mode 100644
+index 00000000000..a0aa896b283
+--- /dev/null
++++ b/ld/scripttempl/m68kmint.sc
+@@ -0,0 +1,47 @@
++# Copyright (C) 2014-2017 Free Software Foundation, Inc.
++#
++# Copying and distribution of this file, with or without modification,
++# are permitted in any medium without royalty provided the copyright
++# notice and this notice are preserved.
++#
++cat <<EOF
++/* Copyright (C) 2014-2017 Free Software Foundation, Inc.
++
++   Copying and distribution of this script, with or without modification,
++   are permitted in any medium without royalty provided the copyright
++   notice and this notice are preserved.  */
++
++${RELOCATING+OUTPUT_FORMAT(${OUTPUT_FORMAT})}
++${RELOCATING-OUTPUT_FORMAT(${RELOCATEABLE_OUTPUT_FORMAT})}
++${RELOCATING+${LIB_SEARCH_DIRS}}
++SECTIONS
++{
++  ${RELOCATING+/* The VMA of the .text section is ${TEXT_START_ADDR} instead of 0
++     because the extended MiNT header is just before,
++     at the beginning of the TEXT segment.  */}
++  .text ${RELOCATING+${TEXT_START_ADDR}}:
++  {
++    CREATE_OBJECT_SYMBOLS
++    *(.text)
++    ${CONSTRUCTING+CONSTRUCTORS}
++    ${RELOCATING+_etext = .;}
++    ${RELOCATING+__etext = .;}
++  }
++
++  .data :
++  {
++    *(.data)
++    ${RELOCATING+_edata = .;}
++    ${RELOCATING+__edata = .;}
++  }
++
++  .bss :
++  {
++    ${RELOCATING+__bss_start = .;}
++    *(.bss)
++    *(COMMON)
++    ${RELOCATING+_end = .;}
++    ${RELOCATING+__end = .;}
++  }
++}
++EOF
+diff --git a/ld/scripttempl/m68kmintelf.sc b/ld/scripttempl/m68kmintelf.sc
+new file mode 100644
+index 00000000000..e47e0fbc68e
+--- /dev/null
++++ b/ld/scripttempl/m68kmintelf.sc
+@@ -0,0 +1,82 @@
++# Copyright (C) 2014-2017 Free Software Foundation, Inc.
++#
++# Copying and distribution of this file, with or without modification,
++# are permitted in any medium without royalty provided the copyright
++# notice and this notice are preserved.
++#
++#  Many sections come in three flavours.  There is the 'real' section,
++#  like ".data".  Then there are the per-procedure or per-variable
++#  sections, generated by -ffunction-sections and -fdata-sections in GCC,
++#  and useful for --gc-sections, which for a variable "foo" might be
++#  ".data.foo".  Then there are the linkonce sections, for which the linker
++#  eliminates duplicates, which are named like ".gnu.linkonce.d.foo".
++#  The exact correspondences are:
++#
++#  Section	Linkonce section
++#  .text	.gnu.linkonce.t.foo
++#  .rodata	.gnu.linkonce.r.foo
++#  .data	.gnu.linkonce.d.foo
++#  .bss		.gnu.linkonce.b.foo
++#  .sdata	.gnu.linkonce.s.foo
++#  .sbss	.gnu.linkonce.sb.foo
++#  .sdata2	.gnu.linkonce.s2.foo
++#  .sbss2	.gnu.linkonce.sb2.foo
++#  .debug_info	.gnu.linkonce.wi.foo
++#  .tdata	.gnu.linkonce.td.foo
++#  .tbss	.gnu.linkonce.tb.foo
++#  .lrodata	.gnu.linkonce.lr.foo
++#  .ldata	.gnu.linkonce.l.foo
++#  .lbss	.gnu.linkonce.lb.foo
++#
++cat <<EOF
++/* Copyright (C) 2014-2017 Free Software Foundation, Inc.
++
++   Copying and distribution of this script, with or without modification,
++   are permitted in any medium without royalty provided the copyright
++   notice and this notice are preserved.  */
++
++${RELOCATING+OUTPUT_FORMAT(${OUTPUT_FORMAT})}
++${RELOCATING-OUTPUT_FORMAT(${RELOCATEABLE_OUTPUT_FORMAT})}
++${RELOCATING+${LIB_SEARCH_DIRS}}
++SECTIONS
++{
++  ${RELOCATING+/* The VMA of the .text section is ${TEXT_START_ADDR} instead of 0
++     because the extended MiNT header is just before,
++     at the beginning of the TEXT segment.  */}
++  .text ${RELOCATING+${TEXT_START_ADDR}}: SUBALIGN(2)
++  {
++    CREATE_OBJECT_SYMBOLS
++    *(.text .text.* .gnu.linkonce.t.*)
++    *(.rodata .rodata.* .gnu.linkonce.r.*) /* Only present in ELF objects */
++    *(.eh_frame*)
++    *(.gcc_except_table*)
++    ${RELOCATING+ *(.ctors)}
++    ${RELOCATING+ *(.dtors)}
++    ${CONSTRUCTING+CONSTRUCTORS}
++    ${RELOCATING+etext = .;}
++    ${RELOCATING+_etext = .;}
++  }
++
++  .data : SUBALIGN(2)
++  {
++    *(.data .data.* .gnu.linkonce.d.* .gnu.linkonce.s.* .gnu.linkonce.s2.*)
++    ${RELOCATING+edata = .;}
++    ${RELOCATING+_edata = .;}
++  }
++
++  .bss :
++  {
++    ${RELOCATING+_bss_start = .;}
++    *(.bss .bss.* .gnu.linkonce.b.* .gnu.linkonce.sb.* .gnu.linkonce.sb2.*)
++    *(COMMON)
++    ${RELOCATING+end = .;}
++    ${RELOCATING+_end = .;}
++  }
++
++  /* Unfortunately, stabs are not mappable from ELF to a.out.
++     It can probably be fixed with some amount of work.  */
++  /DISCARD/ :
++  { *(.stab) *(.stab*) *(.debug) *(.debug*) *(.comment) *(.gnu.warning.*) }
++
++}
++EOF
+diff --git a/libiberty/dyn-string.c b/libiberty/dyn-string.c
+index b96a0cdd300..a1f32664298 100644
+--- a/libiberty/dyn-string.c
++++ b/libiberty/dyn-string.c
+@@ -254,7 +254,7 @@ dyn_string_insert (dyn_string_t dest, int pos, dyn_string_t src)
+   for (i = dest->length; i >= pos; --i)
+     dest->s[i + src->length] = dest->s[i];
+   /* Splice in the new stuff.  */
+-  strncpy (dest->s + pos, src->s, src->length);
++  memcpy (dest->s + pos, src->s, src->length);
+   /* Compute the new length.  */
+   dest->length += src->length;
+   return 1;
+diff --git a/libiberty/hex.c b/libiberty/hex.c
+index 7c4feb2a25e..5c5f443569c 100644
+--- a/libiberty/hex.c
++++ b/libiberty/hex.c
+@@ -24,7 +24,7 @@ Boston, MA 02110-1301, USA.  */
+ #include "libiberty.h"
+ #include "safe-ctype.h" /* for HOST_CHARSET_ASCII */
+ 
+-#if EOF != -1
++#if !(EOF == -1)	/* gcc 2.95.3 has bug in '!=' operator for negative constants */
+  #error "hex.c requires EOF == -1"
+ #endif
+ 
+diff --git a/libiberty/safe-ctype.c b/libiberty/safe-ctype.c
+index 3fa4723f1a2..f5919fa72aa 100644
+--- a/libiberty/safe-ctype.c
++++ b/libiberty/safe-ctype.c
+@@ -118,7 +118,7 @@ sets of characters:
+ #include <safe-ctype.h>
+ #include <stdio.h>  /* for EOF */
+ 
+-#if EOF != -1
++#if !(EOF == -1)	/* gcc 2.95.3 has bug in '!=' operator for negative constants */
+  #error "<safe-ctype.h> requires EOF == -1"
+ #endif
+ 
+diff --git a/opcodes/m68k-opc.c b/opcodes/m68k-opc.c
+index c1165ca5cfc..a1f1ac0a8ca 100644
+--- a/opcodes/m68k-opc.c
++++ b/opcodes/m68k-opc.c
+@@ -955,12 +955,12 @@ const struct m68k_opcode m68k_opcodes[] =
+ 
+ {"fmovemx", 4,	two(0xF000, 0xF800), two(0xF1C0, 0xFF8F), "IiDk&s", mfloat },
+ {"fmovemx", 4,	two(0xF020, 0xE800), two(0xF1F8, 0xFF8F), "IiDk-s", mfloat },
+-{"fmovemx", 4,	two(0xF000, 0xD800), two(0xF1C0, 0xFF8F), "Ii&sDk", mfloat },
++{"fmovemx", 4,	two(0xF000, 0xD800), two(0xF1C0, 0xFF8F), "Ii!sDk", mfloat },
+ {"fmovemx", 4,	two(0xF018, 0xD800), two(0xF1F8, 0xFF8F), "Ii+sDk", mfloat },
+ {"fmovemx", 4,	two(0xF000, 0xF000), two(0xF1C0, 0xFF00), "Idl3&s", mfloat },
+ {"fmovemx", 4,	two(0xF000, 0xF000), two(0xF1C0, 0xFF00), "Id#3&s", mfloat },
+-{"fmovemx", 4,	two(0xF000, 0xD000), two(0xF1C0, 0xFF00), "Id&sl3", mfloat },
+-{"fmovemx", 4,	two(0xF000, 0xD000), two(0xF1C0, 0xFF00), "Id&s#3", mfloat },
++{"fmovemx", 4,	two(0xF000, 0xD000), two(0xF1C0, 0xFF00), "Id!sl3", mfloat },
++{"fmovemx", 4,	two(0xF000, 0xD000), two(0xF1C0, 0xFF00), "Id!s#3", mfloat },
+ {"fmovemx", 4,	two(0xF020, 0xE000), two(0xF1F8, 0xFF00), "IdL3-s", mfloat },
+ {"fmovemx", 4,	two(0xF020, 0xE000), two(0xF1F8, 0xFF00), "Id#3-s", mfloat },
+ {"fmovemx", 4,	two(0xF018, 0xD000), two(0xF1F8, 0xFF00), "Id+sl3", mfloat },
+@@ -978,18 +978,18 @@ const struct m68k_opcode m68k_opcodes[] =
+ {"fmovem", 4,	two(0xF000, 0xF000), two(0xF1C0, 0xFF00), "Iil3ys", cfloat },
+ {"fmovem", 4,	two(0xF000, 0xF000), two(0xF1C0, 0xFF00), "Ii#3ys", cfloat },
+ 
+-{"fmovem", 4,	two(0xF020, 0xE000), two(0xF1F8, 0xFF00), "IdL3-s", mfloat },
+-{"fmovem", 4,	two(0xF000, 0xF000), two(0xF1C0, 0xFF00), "Idl3&s", mfloat },
+-{"fmovem", 4,	two(0xF018, 0xD000), two(0xF1F8, 0xFF00), "Id+sl3", mfloat },
+-{"fmovem", 4,	two(0xF000, 0xD000), two(0xF1C0, 0xFF00), "Id&sl3", mfloat },
+-{"fmovem", 4,	two(0xF020, 0xE000), two(0xF1F8, 0xFF00), "Id#3-s", mfloat },
+-{"fmovem", 4,	two(0xF020, 0xE800), two(0xF1F8, 0xFF8F), "IiDk-s", mfloat },
+-{"fmovem", 4,	two(0xF000, 0xF000), two(0xF1C0, 0xFF00), "Id#3&s", mfloat },
+-{"fmovem", 4,	two(0xF000, 0xF800), two(0xF1C0, 0xFF8F), "IiDk&s", mfloat },
+-{"fmovem", 4,	two(0xF018, 0xD000), two(0xF1F8, 0xFF00), "Id+s#3", mfloat },
+-{"fmovem", 4,	two(0xF018, 0xD800), two(0xF1F8, 0xFF8F), "Ii+sDk", mfloat },
+-{"fmovem", 4,	two(0xF000, 0xD000), two(0xF1C0, 0xFF00), "Id&s#3", mfloat },
+-{"fmovem", 4,	two(0xF000, 0xD800), two(0xF1C0, 0xFF8F), "Ii&sDk", mfloat },
++{"fmovem", 4,	two(0xF020, 0xE000), two(0xF1F8, 0xFF00), "IdL3-s", mfloat }, /* fmovem <list>,-(An) */
++{"fmovem", 4,	two(0xF000, 0xF000), two(0xF1C0, 0xFF00), "Idl3&s", mfloat }, /* fmovem <list>,<ea> */
++{"fmovem", 4,	two(0xF018, 0xD000), two(0xF1F8, 0xFF00), "Id+sl3", mfloat }, /* fmovem (An)+,<list> */
++{"fmovem", 4,	two(0xF000, 0xD000), two(0xF1C0, 0xFF00), "Id!sl3", mfloat }, /* fmovem <ea>,<list> */
++{"fmovem", 4,	two(0xF020, 0xE000), two(0xF1F8, 0xFF00), "Id#3-s", mfloat }, /* fmovem #regs,-(An) */
++{"fmovem", 4,	two(0xF020, 0xE800), two(0xF1F8, 0xFF8F), "IiDk-s", mfloat }, /* fmovem Dn,-(An) */
++{"fmovem", 4,	two(0xF000, 0xF000), two(0xF1C0, 0xFF00), "Id#3&s", mfloat }, /* fmovem #regs,<ea> */
++{"fmovem", 4,	two(0xF000, 0xF800), two(0xF1C0, 0xFF8F), "IiDk&s", mfloat }, /* fmovem Dn,<ea> */
++{"fmovem", 4,	two(0xF018, 0xD000), two(0xF1F8, 0xFF00), "Id+s#3", mfloat }, /* fmovem (An)+,#regs */
++{"fmovem", 4,	two(0xF018, 0xD800), two(0xF1F8, 0xFF8F), "Ii+sDk", mfloat }, /* fmovem (An)+,Dn */
++{"fmovem", 4,	two(0xF000, 0xD000), two(0xF1C0, 0xFF00), "Id!s#3", mfloat }, /* fmovem <ea>,#regs */
++{"fmovem", 4,	two(0xF000, 0xD800), two(0xF1C0, 0xFF8F), "Ii!sDk", mfloat }, /* fmovem <ea>,Dn */
+ {"fmovem", 4,	two(0xF000, 0xA000), two(0xF1C0, 0xE3FF), "Iis8%s", mfloat },
+ {"fmovem", 4,	two(0xF000, 0x8000), two(0xF1C0, 0xE3FF), "Ii*ss8", mfloat },
+ {"fmovem", 4,	two(0xF000, 0xA000), two(0xF1C0, 0xE3FF), "IiL8~s", mfloat },

@@ -1,0 +1,41 @@
+--- a/gmp-h.in	2015-11-01 16:19:48.000000000 +0100
++++ b/gmp-h.in	2023-02-05 16:16:45.000000000 +0100
+@@ -38,11 +38,38 @@
+ 
+ /* Instantiated by configure. */
+ #if ! defined (__GMP_WITHIN_CONFIGURE)
++#if defined(__i386__)
++#define __GMP_HAVE_HOST_CPU_FAMILY_power   0
++#define __GMP_HAVE_HOST_CPU_FAMILY_powerpc 0
++#define GMP_LIMB_BITS                      32
++#define GMP_NAIL_BITS                      0
++#elif defined(__x86_64__)
++#define __GMP_HAVE_HOST_CPU_FAMILY_power   0
++#define __GMP_HAVE_HOST_CPU_FAMILY_powerpc 0
++#define GMP_LIMB_BITS                      64
++#define GMP_NAIL_BITS                      0
++#elif defined(__ppc__)
++#define __GMP_HAVE_HOST_CPU_FAMILY_power   0
++#define __GMP_HAVE_HOST_CPU_FAMILY_powerpc 1
++#define GMP_LIMB_BITS                      32
++#define GMP_NAIL_BITS                      0
++#elif defined(__powerpc64__)
++#define __GMP_HAVE_HOST_CPU_FAMILY_power   0
++#define __GMP_HAVE_HOST_CPU_FAMILY_powerpc 1
++#define GMP_LIMB_BITS                      64
++#define GMP_NAIL_BITS                      0
++#elif defined(__aarch64__)
++#define __GMP_HAVE_HOST_CPU_FAMILY_power   0
++#define __GMP_HAVE_HOST_CPU_FAMILY_powerpc 0
++#define GMP_LIMB_BITS                      64
++#define GMP_NAIL_BITS                      0
++#else
+ #define __GMP_HAVE_HOST_CPU_FAMILY_power   @HAVE_HOST_CPU_FAMILY_power@
+ #define __GMP_HAVE_HOST_CPU_FAMILY_powerpc @HAVE_HOST_CPU_FAMILY_powerpc@
+ #define GMP_LIMB_BITS                      @GMP_LIMB_BITS@
+ #define GMP_NAIL_BITS                      @GMP_NAIL_BITS@
+ #endif
++#endif
+ #define GMP_NUMB_BITS     (GMP_LIMB_BITS - GMP_NAIL_BITS)
+ #define GMP_NUMB_MASK     ((~ __GMP_CAST (mp_limb_t, 0)) >> GMP_NAIL_BITS)
+ #define GMP_NUMB_MAX      GMP_NUMB_MASK

@@ -11,13 +11,18 @@ jobs:
     runs-on: macos-12
     strategy:
       matrix:
-        target: [ m68k-atari-mint, m68k-atari-mintelf ]
-        project: [ binutils ]
+        project: [ binutils, gcc-7, mintbin ]
+        target: [ m68k-atari-mint ]
         include:
           - project: binutils
             version: 2.39
             source_archive: https://ftp.gnu.org/gnu/binutils/binutils-2.39.tar.xz
-            versionpatch: -20220911
+          - project: gcc-7
+            version: 7.5.0
+            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-7.5.0/gcc-7.5.0.tar.xz
+          - project: mintbin
+            version: 0.3
+            source_archive: https://tho-otto.de/download/mint/mintbin-0.3.tar.xz
     steps:
       - uses: actions/checkout@v2
       - name: Install SSH keys
@@ -26,11 +31,11 @@ jobs:
           SSH_ID: ${{ secrets.SSH_ID }}
         run: ./.scripts/install_ssh_id.sh
       - name: Install packages
-        run: wget ${{ matrix.source_archive }}
+        run: wget -nv ${{ matrix.source_archive }}
       - name: build
         env:
           BUILD_ARM64: yes
-        run: ./binutils-build.sh ${{ matrix.target }}
+        run: ./.scripts/build-wrap.sh ${{ matrix.project }} ${{ matrix.target }}
       - name: deploy
         if: ${{ github.event_name == 'push' }}
         env:
@@ -39,6 +44,4 @@ jobs:
           PROJECT_NAME: ${{ matrix.project }}
           PROJECT_VERSION: ${{ matrix.version }}
           TARGET: ${{ matrix.target }}
-          VERSIONPATCH: ${{ matrix.versionpatch }}
-          HOST_TYPE: macos
         run: ./.scripts/deploy.sh

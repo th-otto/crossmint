@@ -9,7 +9,7 @@ me="$0"
 
 PACKAGENAME=binutils
 VERSION=-2.39
-VERSIONPATCH=-20220911
+VERSIONPATCH=-20230206
 REVISION="GNU Binutils for MiNT ${VERSIONPATCH#-}"
 
 TARGET=${1:-m68k-atari-mint}
@@ -75,7 +75,7 @@ if test ! -f ".patched-${PACKAGENAME}${VERSION}"; then
 	         "$ARCHIVES_DIR/${PACKAGENAME}${VERSION}.tar.bz2" \
 	         "${PACKAGENAME}${VERSION}.tar.xz" \
 	         "${PACKAGENAME}${VERSION}.tar.bz2"; do
-		if test -f "$f"; then tar xf "$f" || exit 1; fi
+		if test -f "$f"; then $TAR xf "$f" || exit 1; fi
 	done
 	if test ! -d "$srcdir"; then
 		echo "$srcdir: no such directory" >&2
@@ -184,10 +184,8 @@ case $host in
 		GCC=/usr/bin/clang
 		GXX=/usr/bin/clang++
 		MACOSX_DEPLOYMENT_TARGET=10.6
-		echo "macos target: "`$GCC --print-target-triple`
-		echo "machine: "`uname -m`
 		ARCHS="-arch x86_64"
-		case `$GCC --print-target-triple` in
+		case `$GCC --print-target-triple 2>/dev/null` in
 		arm64* | aarch64*)
 			BUILD_ARM64=yes
 			;;
