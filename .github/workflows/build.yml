@@ -11,7 +11,13 @@ jobs:
     runs-on: macos-12
     strategy:
       matrix:
-        target: [ m68k-atari-mint ]
+        target: [ m68k-atari-mint, m68k-atari-mintelf ]
+        project: [ binutils ]
+        include:
+          - project: binutils
+            version: 2.39
+            source_archive: https://ftp.gnu.org/gnu/binutils/binutils-2.39.tar.xz
+            versionpatch: -20220911
     steps:
       - uses: actions/checkout@v2
       - name: Install SSH keys
@@ -20,8 +26,7 @@ jobs:
           SSH_ID: ${{ secrets.SSH_ID }}
         run: ./.scripts/install_ssh_id.sh
       - name: Install packages
-        run: |
-          wget https://ftp.gnu.org/gnu/binutils/binutils-2.39.tar.xz
+        run: wget ${{ matrix.source_archive }}
       - name: build
         env:
           BUILD_ARM64: yes
@@ -31,9 +36,9 @@ jobs:
         env:
           COMMITER_NAME: ${{ github.event.commits[0].author.name }}
           COMMITER_EMAIL: ${{ github.event.commits[0].author.email }}
-          PROJECT_NAME: binutils
-          PROJECT_VERSION: "2.39"
+          PROJECT_NAME: ${{ matrix.project }}
+          PROJECT_VERSION: ${{ matrix.version }}
           TARGET: ${{ matrix.target }}
-          VERSIONPATCH: -20220911
+          VERSIONPATCH: ${{ matrix.versionpatch }}
           HOST_TYPE: macos
         run: ./.scripts/deploy.sh

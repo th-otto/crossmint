@@ -165,6 +165,9 @@ case "${TARGET}" in
     	if test -n "${bfd_targets}"; then bfd_targets="${bfd_targets},"; else bfd_targets="--enable-targets="; fi
     	bfd_targets="${bfd_targets}m68k-atari-mintelf"
 		;;
+    *-*-darwin*)
+        bfd_targets="${bfd_targets},aarch64-apple-darwin"
+		;;
 esac
 
 rm -rf "$MINT_BUILD_DIR"
