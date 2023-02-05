@@ -75,7 +75,7 @@ if test ! -f ".patched-${PACKAGENAME}${VERSION}"; then
 	         "$ARCHIVES_DIR/${PACKAGENAME}${VERSION}.tar.bz2" \
 	         "${PACKAGENAME}${VERSION}.tar.xz" \
 	         "${PACKAGENAME}${VERSION}.tar.bz2"; do
-		if test -f "$f"; then tar xvf "$f" || exit 1; fi
+		if test -f "$f"; then tar xf "$f" || exit 1; fi
 	done
 	if test ! -d "$srcdir"; then
 		echo "$srcdir: no such directory" >&2
