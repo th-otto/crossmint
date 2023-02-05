@@ -180,10 +180,16 @@ case $host in
 	macos*)
 		GCC=/usr/bin/clang
 		GXX=/usr/bin/clang++
-		export MACOSX_DEPLOYMENT_TARGET=10.6
-		CFLAGS_FOR_BUILD="-pipe -O2 -arch x86_64"
-		CXXFLAGS_FOR_BUILD="-pipe -O2 -stdlib=libc++ -arch x86_64"
-		LDFLAGS_FOR_BUILD="-Wl,-headerpad_max_install_names -arch x86_64"
+		MACOSX_DEPLOYMENT_TARGET=10.6
+		ARCHS="-arch x86_64"
+		if test `uname -m` = arm64; then
+			ARCHS="${ARCHS} -arch arm64"
+			MACOSX_DEPLOYMENT_TARGET=11
+		fi
+		export MACOSX_DEPLOYMENT_TARGET
+		CFLAGS_FOR_BUILD="-pipe -O2 ${ARCHS}"
+		CXXFLAGS_FOR_BUILD="-pipe -O2 -stdlib=libc++ ${ARCHS}"
+		LDFLAGS_FOR_BUILD="-Wl,-headerpad_max_install_names ${ARCHS}"
 		;;
 esac
 
