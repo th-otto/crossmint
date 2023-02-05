@@ -1,0 +1,37 @@
+name: Linux build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: macos-12
+    strategy:
+      matrix:
+        target: [ m68k-atari-mint ]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install SSH keys
+        if: ${{ github.event_name == 'push' }}
+        env:
+          SSH_ID: ${{ secrets.SSH_ID }}
+        run: ./.scripts/install_ssh_id.sh
+      - name: Install packages
+        run: |
+          wget https://ftp.gnu.org/gnu/binutils/binutils-2.39.tar.xz
+      - name: build
+        run: ./binutils-build.sh ${{ matrix.target }}
+      - name: deploy
+        if: ${{ github.event_name == 'push' }}
+        env:
+          COMMITER_NAME: ${{ github.event.commits[0].author.name }}
+          COMMITER_EMAIL: ${{ github.event.commits[0].author.email }}
+          PROJECT_NAME=binutils
+          PROJECT_VERSION: "2.39"
+          TARGET=${{ matrix.target }}
+          VERSIONPATCH=-20220911
+          HOST_TYPE=macos
+        run: ./.scripts/deploy.sh

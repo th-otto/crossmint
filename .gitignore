@@ -1,0 +1,7 @@
+.patched-*
+*.o
+a.out
+binary7-package
+*-build
+pkgs
+*.tar.xz
