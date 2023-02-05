@@ -23,6 +23,8 @@ jobs:
         run: |
           wget https://ftp.gnu.org/gnu/binutils/binutils-2.39.tar.xz
       - name: build
+        env:
+          BUILD_ARM64: yes
         run: ./binutils-build.sh ${{ matrix.target }}
       - name: deploy
         if: ${{ github.event_name == 'push' }}

@@ -181,8 +181,15 @@ case $host in
 		GCC=/usr/bin/clang
 		GXX=/usr/bin/clang++
 		MACOSX_DEPLOYMENT_TARGET=10.6
+		echo "macos target: "`$GCC --print-target-triple`
+		echo "machine: "`uname -m`
 		ARCHS="-arch x86_64"
-		if test `uname -m` = arm64; then
+		case `$GCC --print-target-triple` in
+		arm64* | aarch64*)
+			BUILD_ARM64=yes
+			;;
+		esac
+		if test "$BUILD_ARM64" = yes; then
 			ARCHS="${ARCHS} -arch arm64"
 			MACOSX_DEPLOYMENT_TARGET=11
 		fi
