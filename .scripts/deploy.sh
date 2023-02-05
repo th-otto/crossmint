@@ -17,7 +17,7 @@ then
 fi
 
 # must match TARNAME in build script
-ARCHIVE_NAME="${PROJECT_NAME}-${VERSION}-${TARGET##*-}${VERSIONPATCH}-bin-${HOST_TYPE}.tar.xz"
+ARCHIVE_NAME="${PROJECT_NAME}-${PROJECT_VERSION}-${TARGET##*-}${VERSIONPATCH}-bin-${HOST_TYPE}.tar.xz"
 ARCHIVE_PATH="${DEPLOY_DIR}/${ARCHIVE_NAME}"
 
 eval "$(ssh-agent -s)"

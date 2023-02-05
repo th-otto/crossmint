@@ -20,7 +20,7 @@ case `uname -s` in
 	*) here=`pwd` ;;
 esac
 
-ARCHIVES_DIR=.
+ARCHIVES_DIR=$HOME/packages
 BUILD_DIR="$here"
 MINT_BUILD_DIR="$BUILD_DIR/binutils-build"
 PKG_DIR="$here/binary7-package"
