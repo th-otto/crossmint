@@ -115,10 +115,10 @@ index 019054da22a..fc3118cbfc6 100755
        if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
  	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
 diff --git a/config-ml.in b/config-ml.in
-index 2dd0d5181f2..59a96b07afb 100644
+index 2dd0d5181f2..ca30eb9984b 100644
 --- a/config-ml.in
 +++ b/config-ml.in
-@@ -351,6 +351,23 @@ m68*-*-*)
+@@ -351,6 +351,24 @@ m68*-*-*)
  	    esac
  	  done
  	fi
@@ -132,6 +132,7 @@ index 2dd0d5181f2..59a96b07afb 100644
 +	        for x in ${old_multidirs}; do
 +		  case "$x" in
 +		    *mshort ) : ;;
++		    *mfastcall ) : ;;
 +		    *) multidirs="${multidirs} ${x}" ;;
 +		  esac
 +		done
@@ -3630,10 +3631,10 @@ index 6d9f8b2d4a1..9fad2950508 100644
    double temp;
 diff --git a/gcc/config/m68k/mint.h b/gcc/config/m68k/mint.h
 new file mode 100644
-index 00000000000..16cb864cb76
+index 00000000000..6d9844ba645
 --- /dev/null
 +++ b/gcc/config/m68k/mint.h
-@@ -0,0 +1,176 @@
+@@ -0,0 +1,177 @@
 +/* Definitions of target machine for GNU compiler.
 +   Atari ST TOS/MiNT.
 +   Copyright (C) 1994, 1995, 2007, 2008, 2009, 2010, 2011
@@ -3712,6 +3713,7 @@ index 00000000000..16cb864cb76
 +
 +#define STARTFILE_SPEC	"%{pg|p|profile:gcrt0.o%s;:crt0.o%s}"
 +#define LIB_SPEC	"-lc"
++#define LINKER_NAME	"collect2 %{v:-v}"
 +
 +/* Every structure or union's size must be a multiple of 2 bytes.  */
 +#define STRUCTURE_SIZE_BOUNDARY 16

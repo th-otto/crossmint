@@ -171,9 +171,7 @@ if ! test -f ${PREFIX}/${TARGET}/sys-root/usr/include/compiler.h; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
 		sudo mkdir -p ${PREFIX}/${TARGET}/sys-root/usr
 		echo "fetching mintlib"
-		# wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root/usr" -xjf -
-		# hack to get libstdc++ configured
-		wget -q -O - "https://tho-otto.de/download/mint/${TARGET}-mintlib-fastcall.tar.xz" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root/usr" -xJf -
+		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root/usr" -xjf -
 		echo "fetching fdlibm"
 		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root/usr" -xjf -
 	fi
