@@ -8,7 +8,7 @@ me="$0"
 
 PACKAGENAME=gcc
 VERSION=-7.5.0
-VERSIONPATCH=-20230206
+VERSIONPATCH=-20230210
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -799,6 +799,8 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 
 	# these are currently identically compiled 2 times; FIXME
 	m68000=`"${INSTALL_DIR}/${PREFIX}/bin/${TARGET}-gcc" -m68000 -print-multi-directory`
+	# this only happens if gcc was patched to put the m68000 libraries also
+	# in a sub-directory of /usr/lib
 	if test "$m68000" = "m68000"; then
 		for dir in . mshort mfastcall mfastcall/mshort; do
 			for f in libgcov.a libgcc.a libcaf_single.a; do

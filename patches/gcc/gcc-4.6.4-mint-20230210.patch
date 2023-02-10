@@ -1,0 +1,5025 @@
+diff --git a/Makefile.def b/Makefile.def
+index 95c77ab179c..eb906eff8ae 100644
+--- a/Makefile.def
++++ b/Makefile.def
+@@ -69,10 +69,10 @@ host_modules= { module= gmp; lib_path=.libs; bootstrap=true;
+ 		// gmp's configure will complain if given anything
+ 		// different from host for target.
+ 	        target="none-${host_vendor}-${host_os}"; };
+-host_modules= { module= mpfr; lib_path=.libs; bootstrap=true;
++host_modules= { module= mpfr; lib_path=src/.libs; bootstrap=true;
+ 		extra_configure_flags='--disable-shared @extra_mpfr_configure_flags@';
+ 		no_install= true; };
+-host_modules= { module= mpc; lib_path=.libs; bootstrap=true;
++host_modules= { module= mpc; lib_path=src/.libs; bootstrap=true;
+ 		extra_configure_flags='--disable-shared @extra_mpc_gmp_configure_flags@ @extra_mpc_mpfr_configure_flags@';
+ 		no_install= true; };
+ host_modules= { module= ppl; lib_path=src/.libs; bootstrap=true;
+diff --git a/Makefile.in b/Makefile.in
+index 51edbdf0268..9d311df38d9 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -616,12 +616,12 @@ HOST_LIB_PATH_gmp = \
+ 
+ @if mpfr
+ HOST_LIB_PATH_mpfr = \
+-  $$r/$(HOST_SUBDIR)/mpfr/.libs:$$r/$(HOST_SUBDIR)/prev-mpfr/.libs:
++  $$r/$(HOST_SUBDIR)/mpfr/src/.libs:$$r/$(HOST_SUBDIR)/prev-mpfr/src/.libs:
+ @endif mpfr
+ 
+ @if mpc
+ HOST_LIB_PATH_mpc = \
+-  $$r/$(HOST_SUBDIR)/mpc/.libs:$$r/$(HOST_SUBDIR)/prev-mpc/.libs:
++  $$r/$(HOST_SUBDIR)/mpc/src/.libs:$$r/$(HOST_SUBDIR)/prev-mpc/src/.libs:
+ @endif mpc
+ 
+ @if ppl
+diff --git a/README.md b/README.md
+new file mode 100644
+index 00000000000..fb7bce189b7
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,46 @@
++gcc-4.6.4
++=========
++
++Patch to gcc for supporting "fastcall" on m68k target.
++
++By default gcc pass all arguments on the stack for the m68k target, 
++this is not always optimal when memory access is slow. This default
++abi is from now an named the `cdecl` abi.
++
++A new abi named `fastcall` has been added, where registers d0-d2, 
++a0-a1 and fp0-fp2 are used to pass registers to functions when possible.
++A third option is to use the `regparm` option to specify the number
++of registers of each class to use.
++
++At a minimum d0-d1, a0-a1, fp0-fp1 are clobbered by function calls.
++Any further register potentially used for the arguments for the
++functions abi is also clobbered, that is that d2 is also 
++concidered clobbered for `fastcall`.
++
++32 bit float are passed in registers when 68881 is not enabled, when
++enabled fp0-fp2 are used for all floating point types.
++
++All build-in libgcc functions use the `fastcall` abi, this means that
++any library being used must also be rebuilt. This is most useful on
++plain 68000 where short helper functions for 32bit int are frequently
++called.
++
++Only named arguments for variadic functions can use registers, all
++unnamed arguments are always passed on the stack.
++
++Examples
++--------
++
++    // a passed in d0
++    // b passed in d1
++    __attribute__((fastcall)) int foo(int a, int b);
++    
++    // a passed in d0
++    // b passed in a0
++    // c passed in d1
++    __attribute__((fastcall)) int foo(float a, int *b, char c);
++
++    // s passed in a0
++    // rest on stack
++    __attribute__((fastcall)) void printf(char *s, ...);
++
+diff --git a/boehm-gc/configure b/boehm-gc/configure
+index 019054da22a..fc3118cbfc6 100755
+--- a/boehm-gc/configure
++++ b/boehm-gc/configure
+@@ -5655,6 +5655,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -9287,6 +9293,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/config-ml.in b/config-ml.in
+index 2dd0d5181f2..ca30eb9984b 100644
+--- a/config-ml.in
++++ b/config-ml.in
+@@ -351,6 +351,24 @@ m68*-*-*)
+ 	    esac
+ 	  done
+ 	fi
++	case "${host}" in
++	  *-*-mint*)
++	    case "${srcdir}" in
++	      */libgcc ) : ;;
++	      *)
++	        old_multidirs="${multidirs}"
++	        multidirs=""
++	        for x in ${old_multidirs}; do
++		  case "$x" in
++		    *mshort ) : ;;
++		    *mfastcall ) : ;;
++		    *) multidirs="${multidirs} ${x}" ;;
++		  esac
++		done
++		;;
++	    esac
++	    ;;
++	esac
+ 	;;
+ mips*-*-*)
+ 	if [ x$enable_single_float = xno ]
+diff --git a/config.guess b/config.guess
+index 6eeea023eb9..4e19ae06ba5 100755
+--- a/config.guess
++++ b/config.guess
+@@ -395,22 +395,22 @@ case "${UNAME_MACHINE}:${UNAME_SYSTEM}:${UNAME_RELEASE}:${UNAME_VERSION}" in
+     # MiNT.  But MiNT is downward compatible to TOS, so this should
+     # be no problem.
+     atarist[e]:*MiNT:*:* | atarist[e]:*mint:*:* | atarist[e]:*TOS:*:*)
+-        echo m68k-atari-mint${UNAME_RELEASE}
++        echo m68k-atari-mint
+ 	exit ;;
+     atari*:*MiNT:*:* | atari*:*mint:*:* | atarist[e]:*TOS:*:*)
+-	echo m68k-atari-mint${UNAME_RELEASE}
++	echo m68k-atari-mint
+         exit ;;
+     *falcon*:*MiNT:*:* | *falcon*:*mint:*:* | *falcon*:*TOS:*:*)
+-        echo m68k-atari-mint${UNAME_RELEASE}
++        echo m68k-atari-mint
+ 	exit ;;
+     milan*:*MiNT:*:* | milan*:*mint:*:* | *milan*:*TOS:*:*)
+-        echo m68k-milan-mint${UNAME_RELEASE}
++        echo m68k-milan-mint
+         exit ;;
+     hades*:*MiNT:*:* | hades*:*mint:*:* | *hades*:*TOS:*:*)
+-        echo m68k-hades-mint${UNAME_RELEASE}
++        echo m68k-hades-mint
+         exit ;;
+     *:*MiNT:*:* | *:*mint:*:* | *:*TOS:*:*)
+-        echo m68k-unknown-mint${UNAME_RELEASE}
++        echo m68k-unknown-mint
+         exit ;;
+     m68k:machten:*:*)
+ 	echo m68k-apple-machten${UNAME_RELEASE}
+diff --git a/configure b/configure
+index 6be5e9d2b60..3b281204fdd 100755
+--- a/configure
++++ b/configure
+@@ -3077,6 +3077,9 @@ if test x$enable_libmudflap = x ; then
+     *-*-freebsd*)
+         # Enable libmudflap by default in FreeBSD.
+ 	;;
++    *-*-mint*)
++        # Enable libmudflap by default in MiNT.
++	;;
+     *)
+         # Disable it by default everywhere else.
+ 	noconfigdirs="$noconfigdirs target-libmudflap"
+@@ -3449,6 +3452,9 @@ case "${target}" in
+   m68k-*-coff*)
+     noconfigdirs="$noconfigdirs ${libgcj}"
+     ;;
++  m68k-*-mint*)
++    noconfigdirs="$noconfigdirs target-libiberty ${libgcj}"
++    ;;
+   m68*-*-* | fido-*-*)
+     libgloss_dir=m68k
+     ;;
+@@ -5279,9 +5285,13 @@ if test "x$with_mpfr_lib" != x; then
+   gmplibs="-L$with_mpfr_lib $gmplibs"
+ fi
+ if test "x$with_mpfr$with_mpfr_include$with_mpfr_lib" = x && test -d ${srcdir}/mpfr; then
+-  gmplibs='-L$$r/$(HOST_SUBDIR)/mpfr/'"$lt_cv_objdir $gmplibs"
+-  gmpinc='-I$$r/$(HOST_SUBDIR)/mpfr -I$$s/mpfr '"$gmpinc"
+-  extra_mpc_mpfr_configure_flags='--with-mpfr-include=$$s/mpfr --with-mpfr-lib=$$r/$(HOST_SUBDIR)/mpfr/'"$lt_cv_objdir"
++  # MPFR v3.1.0 moved the sources into a src sub-directory.
++  if ! test -d ${srcdir}/mpfr/src; then
++    as_fn_error "Building GCC with MPFR in the source tree is only handled for MPFR 3.1.0+." "$LINENO" 5
++  fi
++  gmplibs='-L$$r/$(HOST_SUBDIR)/mpfr/src/'"$lt_cv_objdir $gmplibs"
++  gmpinc='-I$$r/$(HOST_SUBDIR)/mpfr/src -I$$s/mpfr/src '"$gmpinc"
++  extra_mpc_mpfr_configure_flags='--with-mpfr-include=$$s/mpfr/src --with-mpfr-lib=$$r/$(HOST_SUBDIR)/mpfr/src/'"$lt_cv_objdir"
+   # Do not test the mpfr version.  Assume that it is sufficient, since
+   # it is in the source tree, and the library has not been built yet
+   # but it would be included on the link line in the version check below
+diff --git a/configure.ac b/configure.ac
+index ba6d84da43b..875bca42544 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -523,6 +523,9 @@ if test x$enable_libmudflap = x ; then
+     *-*-freebsd*)
+         # Enable libmudflap by default in FreeBSD.
+ 	;;
++    *-*-mint*)
++        # Enable libmudflap by default in MiNT.
++	;;
+     *)
+         # Disable it by default everywhere else.
+ 	noconfigdirs="$noconfigdirs target-libmudflap"
+@@ -895,6 +898,9 @@ case "${target}" in
+   m68k-*-coff*)
+     noconfigdirs="$noconfigdirs ${libgcj}"
+     ;;
++  m68k-*-mint*)
++    noconfigdirs="$noconfigdirs target-libiberty ${libgcj}"
++    ;;
+   m68*-*-* | fido-*-*)
+     libgloss_dir=m68k
+     ;;
+@@ -1393,9 +1399,14 @@ if test "x$with_mpfr_lib" != x; then
+   gmplibs="-L$with_mpfr_lib $gmplibs"
+ fi
+ if test "x$with_mpfr$with_mpfr_include$with_mpfr_lib" = x && test -d ${srcdir}/mpfr; then
+-  gmplibs='-L$$r/$(HOST_SUBDIR)/mpfr/'"$lt_cv_objdir $gmplibs"
+-  gmpinc='-I$$r/$(HOST_SUBDIR)/mpfr -I$$s/mpfr '"$gmpinc"
+-  extra_mpc_mpfr_configure_flags='--with-mpfr-include=$$s/mpfr --with-mpfr-lib=$$r/$(HOST_SUBDIR)/mpfr/'"$lt_cv_objdir"
++  # MPFR v3.1.0 moved the sources into a src sub-directory.
++  if ! test -d ${srcdir}/mpfr/src; then
++    AC_MSG_ERROR([dnl
++Building GCC with MPFR in the source tree is only handled for MPFR 3.1.0+.])
++  fi
++  gmplibs='-L$$r/$(HOST_SUBDIR)/mpfr/src/'"$lt_cv_objdir $gmplibs"
++  gmpinc='-I$$r/$(HOST_SUBDIR)/mpfr/src -I$$s/mpfr/src '"$gmpinc"
++  extra_mpc_mpfr_configure_flags='--with-mpfr-include=$$s/mpfr/src --with-mpfr-lib=$$r/$(HOST_SUBDIR)/mpfr/src/'"$lt_cv_objdir"
+   # Do not test the mpfr version.  Assume that it is sufficient, since
+   # it is in the source tree, and the library has not been built yet
+   # but it would be included on the link line in the version check below
+diff --git a/gcc/config.gcc b/gcc/config.gcc
+index 6dc2427bc7c..6df36803d99 100644
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -1809,6 +1809,15 @@ m68k-*-linux*)		# Motorola m68k's running GNU/Linux
+ 	    tmake_file="$tmake_file m68k/t-slibgcc-elf-ver"
+ 	fi
+ 	;;
++m68k-*-mint*)
++	default_m68k_cpu=68000
++	default_cf_cpu=5475
++	tm_file="${tm_file} m68k/mint.h"
++	tm_defines="${tm_defines} MOTOROLA=1"
++	tmake_file="m68k/t-floatlib m68k/t-mint"
++	gas=yes
++	gnu_ld=yes
++	;;
+ m68k-*-rtems*)
+ 	default_m68k_cpu=68020
+ 	default_cf_cpu=5206
+diff --git a/gcc/config/host-darwin.c b/gcc/config/host-darwin.c
+index 4d5a5512e9f..ba62c1d91a4 100644
+--- a/gcc/config/host-darwin.c
++++ b/gcc/config/host-darwin.c
+@@ -24,7 +24,10 @@
+ #include "config/host-darwin.h"
+ 
+ /* Yes, this is really supposed to work.  */
+-static char pch_address_space[1024*1024*1024] __attribute__((aligned (4096)));
++/* This allows for a pagesize of 16384, which we have on Darwin20, but should
++   continue to work OK for pagesize 4096 which we have on earlier versions.
++   The size is 1 (binary) Gb.  */
++static char pch_address_space[65536*16384] __attribute__((aligned (16384)));
+ 
+ /* Return the address of the PCH address space, if the PCH will fit in it.  */
+ 
+diff --git a/gcc/config/m68k/lb1sf68-fast.asm b/gcc/config/m68k/lb1sf68-fast.asm
+new file mode 100644
+index 00000000000..b3b4d1ab029
+--- /dev/null
++++ b/gcc/config/m68k/lb1sf68-fast.asm
+@@ -0,0 +1,1481 @@
++/* libgcc routines for 68000 w/o floating-point hardware.
++   Copyright (C) 1994, 1996, 1997, 1998, 2008, 2009 Free Software Foundation, Inc.
++
++This file is part of GCC.
++
++GCC is free software; you can redistribute it and/or modify it
++under the terms of the GNU General Public License as published by the
++Free Software Foundation; either version 3, or (at your option) any
++later version.
++
++This file is distributed in the hope that it will be useful, but
++WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++General Public License for more details.
++
++Under Section 7 of GPL version 3, you are granted additional
++permissions described in the GCC Runtime Library Exception, version
++3.1, as published by the Free Software Foundation.
++
++You should have received a copy of the GNU General Public License and
++a copy of the GCC Runtime Library Exception along with this program;
++see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++<http://www.gnu.org/licenses/>.  */
++
++#ifdef  L_mulsi3
++	.text
++	FUNC(__mulsi3)
++	.globl	SYM (__mulsi3)
++SYM (__mulsi3):
++	move.l  d2,-(a7)
++	movel   d0, a0          | d0a0 = x0:x1
++	movel   d1, a1		| d1a1 = y0:y1
++	swap	d0              | d0   = x1:x0 
++	muluw   d1, d0          | d0 = y1*x0 
++	swap	d1		| d1 = y1:y0
++	movel   a0, d2		| d2 = x0:x1
++	muluw   d2, d1          | d1 = x1*y0	
++#ifndef __mcoldfire__
++	addw	d1, d0
++#else
++	addl	d1, d0
++#endif
++	swap	d0
++	clrw	d0
++	movel	a1,d1		| d1 = y0:y1
++	muluw	d2, d1		| d1 = x1*y1
++
++	move.l  (a7)+,d2
++	addl	d1, d0
++
++	rts
++#endif /* L_mulsi3 */
++
++#ifdef  L_udivsi3
++	.text
++	FUNC(__udivsi3)
++	.globl	SYM (__udivsi3)
++SYM (__udivsi3):
++#ifndef __mcoldfire__
++	move.l  d2,-(a7)
++	movel	d0, a0
++
++	cmpl	IMM (0x10000), d1 /* divisor >= 2 ^ 16 ?   */
++	jcc	udivsi3_fast_L3		/* then try next algorithm */
++	movel	d0, d2
++	clrw	d2
++	swap	d2
++	divu	d1, d2          /* high quotient in lower word */
++	movew	d2, d0		/* save high quotient */
++	swap	d0
++	movew	a0, d2		/* get low dividend + high rest */
++	divu	d1, d2		/* low quotient */
++	movew	d2, d0
++	jra	udivsi3_fast_L6
++
++udivsi3_fast_L3:	movel	d1, d2		/* use d2 as divisor backup */
++udivsi3_fast_L4:	lsrl	IMM (1), d1	/* shift divisor */
++	lsrl	IMM (1), d0	/* shift dividend */
++	cmpl	IMM (0x10000), d1 /* still divisor >= 2 ^ 16 ?  */
++	jcc	udivsi3_fast_L4
++	divu	d1, d0		/* now we have 16-bit divisor */
++	andl	IMM (0xffff), d0 /* mask out divisor, ignore remainder */
++
++/* Multiply the 16-bit tentative quotient with the 32-bit divisor.  Because of
++   the operand ranges, this might give a 33-bit product.  If this product is
++   greater than the dividend, the tentative quotient was too large. */
++	movel	d2, d1
++	mulu	d0, d1		/* low part, 32 bits */
++	swap	d2
++	mulu	d0, d2		/* high part, at most 17 bits */
++	swap	d2		/* align high part with low part */
++	tstw	d2		/* high part 17 bits? */
++	jne	udivsi3_fast_L5		/* if 17 bits, quotient was too large */
++	addl	d2, d1		/* add parts */
++	jcs	udivsi3_fast_L5		/* if sum is 33 bits, quotient was too large */
++	cmpl	a0, d1		/* compare the sum with the dividend */
++	jls	udivsi3_fast_L6		/* if sum > dividend, quotient was too large */
++udivsi3_fast_L5:	subql	IMM (1), d0	/* adjust quotient */
++
++udivsi3_fast_L6:
++	move.l  (a7)+,d2
++	rts
++
++#else /* __mcoldfire__ */
++
++/* ColdFire implementation of non-restoring division algorithm from
++   Hennessy & Patterson, Appendix A. */
++	moveml	d2-d4,sp@
++	clrl	d2		| clear p
++	moveq	IMM (31),d4
++udivsi3_fast_L1:	addl	d0,d0		| shift reg pair (p,a) one bit left
++	addxl	d2,d2
++	movl	d2,d3		| subtract b from p, store in tmp.
++	subl	d1,d3
++	jcs	udivsi3_fast_L2		| if no carry,
++	bset	IMM (0),d0	| set the low order bit of a to 1,
++	movl	d3,d2		| and store tmp in p.
++udivsi3_fast_L2:	subql	IMM (1),d4
++	jcc	udivsi3_fast_L1
++	moveml	sp@,d2-d4	| restore data registers
++	rts
++#endif /* __mcoldfire__ */
++
++#endif /* L_udivsi3 */
++
++#ifdef  L_divsi3
++	.text
++	FUNC(__divsi3)
++	.globl	SYM (__divsi3)
++SYM (__divsi3):
++	move.l  d2,-(a7)
++	moveq	IMM (1), d2	/* sign of result stored in d2 (=1 or =-1) */
++	tstl	d1
++	jpl	divsi3_fast_L1
++	negl	d1
++#ifndef __mcoldfire__
++	negw	d2		/* change sign because divisor <0  */
++#else
++	negl	d2		/* change sign because divisor <0  */
++#endif
++divsi3_fast_L1:	tstl	d0		/* d0 = dividend */
++	jpl	divsi3_fast_L2
++	negl	d0
++#ifndef __mcoldfire__
++	negw	d2
++#else
++	negl	d2
++#endif
++
++divsi3_fast_L2:	movew	d2,a1		/* Called function MUST NOT clobber a1 */
++	PICCALL	SYM (__udivsi3)	/* divide abs(dividend) by abs(divisor) */
++
++	movew	a1,d2
++	jpl	divsi3_fast_L3
++	negl	d0
++
++divsi3_fast_L3:
++	move.l  (a7)+,d2
++	rts
++#endif /* L_divsi3 */
++
++#ifdef  L_umodsi3
++	.text
++	FUNC(__umodsi3)
++	.globl	SYM (__umodsi3)
++SYM (__umodsi3):
++	move.l  d2,-(a7)
++	movel	d0, d2
++	movel	d1, a1		/* a1 MUST NOT be clobbered by calls*/
++	PICCALL	SYM (__udivsi3)
++	movel	a1, d1		/* d1 = divisor */
++#ifndef __mcoldfire__
++	PICCALL	SYM (__mulsi3)	/* d0 = (a/b)*b */
++#else
++	mulsl	d1,d0
++#endif
++	movel	d2, d1		/* d1 = dividend */
++	subl	d0, d1		/* d1 = a - (a/b)*b */
++	movel	d1, d0
++	move.l  (a7)+,d2
++	rts
++#endif /* L_umodsi3 */
++
++#ifdef  L_modsi3
++	.text
++	FUNC(__modsi3)
++	.globl	SYM (__modsi3)
++SYM (__modsi3):
++	move.l  d2,-(a7)
++	movel	d0, sp@-
++	movel	d1, sp@-
++	PICCALL	SYM (__divsi3)
++	movel	sp@+, d1	/* d1 = divisor */
++#ifndef __mcoldfire__
++	PICCALL	SYM (__mulsi3)	/* d0 = (a/b)*b */
++#else
++	mulsl	d1,d0
++#endif
++	movel	sp@+, d1	/* d1 = dividend */
++	subl	d0, d1		/* d1 = a - (a/b)*b */
++	movel	d1, d0
++	move.l  (a7)+,d2
++	rts
++#endif /* L_modsi3 */
++
++
++#ifdef  L_float
++
++|=============================================================================
++|=============================================================================
++|                         single precision routines
++|=============================================================================
++|=============================================================================
++
++| A single precision floating point number (float) has the format:
++|
++| struct _float {
++|  unsigned int sign      : 1;  /* sign bit */ 
++|  unsigned int exponent  : 8;  /* exponent, shifted by 126 */
++|  unsigned int fraction  : 23; /* fraction */
++| } float;
++| 
++| Thus sizeof(float) = 4 (32 bits). 
++|
++| All the routines are callable from C programs, and return the result 
++| in the single register d0. They also preserve all registers except 
++| d0-d1 and a0-a1.
++
++|=============================================================================
++|                              __subsf3
++|=============================================================================
++
++| float __subsf3(float, float);
++	FUNC(__subsf3)
++SYM (__subsf3):
++	negl	d1       	| change sign of second operand
++				| and fall through
++|=============================================================================
++|                              __addsf3
++|=============================================================================
++
++| float __addsf3(float, float);
++	FUNC(__addsf3)
++SYM (__addsf3):
++#ifndef __mcoldfire__
++	link	a6,IMM (0)	| everything will be done in registers
++	moveml	d2-d7/a2-a5,sp@-	| save all data registers but d0-d1
++#else
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
++#endif
++	movel	d0,a2		| store first operand
++	movel	d1,a3		| store second operand
++	movel	d0,a0		| get d0's sign bit '
++	addl	d0,d0		| check and clear sign bit of a
++	beq	Laddsf$b	| if zero return second operand
++	movel	d1,a1		| save b's sign bit '
++	addl	d1,d1		| get rid of sign bit
++	beq	Laddsf$a	| if zero return first operand
++
++| Get the exponents and check for denormalized and/or infinity.
++
++	movel	IMM (0x00ffffff),d4	| mask to get fraction
++	movel	IMM (0x01000000),d5	| mask to put hidden bit back
++
++	movel	d0,d6		| save a to get exponent
++	andl	d4,d0		| get fraction in d0
++	notl 	d4		| make d4 into a mask for the exponent
++	andl	d4,d6		| get exponent in d6
++	beq	Laddsf$a$den	| branch if a is denormalized
++	cmpl	d4,d6		| check for INFINITY or NaN
++	beq	Laddsf$nf
++	swap	d6		| put exponent into first word
++	orl	d5,d0		| and put hidden bit back
++Laddsf$1:
++| Now we have a's exponent in d6 (second byte) and the mantissa in d0. '
++	movel	d1,d7		| get exponent in d7
++	andl	d4,d7		| 
++	beq	Laddsf$b$den	| branch if b is denormalized
++	cmpl	d4,d7		| check for INFINITY or NaN
++	beq	Laddsf$nf
++	swap	d7		| put exponent into first word
++	notl 	d4		| make d4 into a mask for the fraction
++	andl	d4,d1		| get fraction in d1
++	orl	d5,d1		| and put hidden bit back
++Laddsf$2:
++| Now we have b's exponent in d7 (second byte) and the mantissa in d1. '
++
++| Note that the hidden bit corresponds to bit #FLT_MANT_DIG-1, and we 
++| shifted right once, so bit #FLT_MANT_DIG is set (so we have one extra
++| bit).
++
++	movel	d1,d2		| move b to d2, since we want to use
++				| two registers to do the sum
++	movel	IMM (0),d1	| and clear the new ones
++	movel	d1,d3		|
++
++| Here we shift the numbers in registers d0 and d1 so the exponents are the
++| same, and put the largest exponent in d6. Note that we are using two
++| registers for each number (see the discussion by D. Knuth in "Seminumerical 
++| Algorithms").
++#ifndef __mcoldfire__
++	cmpw	d6,d7		| compare exponents
++#else
++	cmpl	d6,d7		| compare exponents
++#endif
++	beq	Laddsf$3	| if equal don't shift '
++	bhi	5f		| branch if second exponent largest
++1:
++	subl	d6,d7		| keep the largest exponent
++	negl	d7
++#ifndef __mcoldfire__
++	lsrw	IMM (8),d7	| put difference in lower byte
++#else
++	lsrl	IMM (8),d7	| put difference in lower byte
++#endif
++| if difference is too large we don't shift (actually, we can just exit) '
++#ifndef __mcoldfire__
++	cmpw	IMM (FLT_MANT_DIG+2),d7		
++#else
++	cmpl	IMM (FLT_MANT_DIG+2),d7		
++#endif
++	bge	Laddsf$b$small
++#ifndef __mcoldfire__
++	cmpw	IMM (16),d7	| if difference >= 16 swap
++#else
++	cmpl	IMM (16),d7	| if difference >= 16 swap
++#endif
++	bge	4f
++2:
++#ifndef __mcoldfire__
++	subw	IMM (1),d7
++#else
++	subql	IMM (1), d7
++#endif
++3:
++#ifndef __mcoldfire__
++	lsrl	IMM (1),d2	| shift right second operand
++	roxrl	IMM (1),d3
++	dbra	d7,3b
++#else
++	lsrl	IMM (1),d3
++	btst	IMM (0),d2
++	beq	10f
++	bset	IMM (31),d3
++10:	lsrl	IMM (1),d2
++	subql	IMM (1), d7
++	bpl	3b
++#endif
++	bra	Laddsf$3
++4:
++	movew	d2,d3
++	swap	d3
++	movew	d3,d2
++	swap	d2
++#ifndef __mcoldfire__
++	subw	IMM (16),d7
++#else
++	subl	IMM (16),d7
++#endif
++	bne	2b		| if still more bits, go back to normal case
++	bra	Laddsf$3
++5:
++#ifndef __mcoldfire__
++	exg	d6,d7		| exchange the exponents
++#else
++	eorl	d6,d7
++	eorl	d7,d6
++	eorl	d6,d7
++#endif
++	subl	d6,d7		| keep the largest exponent
++	negl	d7		|
++#ifndef __mcoldfire__
++	lsrw	IMM (8),d7	| put difference in lower byte
++#else
++	lsrl	IMM (8),d7	| put difference in lower byte
++#endif
++| if difference is too large we don't shift (and exit!) '
++#ifndef __mcoldfire__
++	cmpw	IMM (FLT_MANT_DIG+2),d7		
++#else
++	cmpl	IMM (FLT_MANT_DIG+2),d7		
++#endif
++	bge	Laddsf$a$small
++#ifndef __mcoldfire__
++	cmpw	IMM (16),d7	| if difference >= 16 swap
++#else
++	cmpl	IMM (16),d7	| if difference >= 16 swap
++#endif
++	bge	8f
++6:
++#ifndef __mcoldfire__
++	subw	IMM (1),d7
++#else
++	subl	IMM (1),d7
++#endif
++7:
++#ifndef __mcoldfire__
++	lsrl	IMM (1),d0	| shift right first operand
++	roxrl	IMM (1),d1
++	dbra	d7,7b
++#else
++	lsrl	IMM (1),d1
++	btst	IMM (0),d0
++	beq	10f
++	bset	IMM (31),d1
++10:	lsrl	IMM (1),d0
++	subql	IMM (1),d7
++	bpl	7b
++#endif
++	bra	Laddsf$3
++8:
++	movew	d0,d1
++	swap	d1
++	movew	d1,d0
++	swap	d0
++#ifndef __mcoldfire__
++	subw	IMM (16),d7
++#else
++	subl	IMM (16),d7
++#endif
++	bne	6b		| if still more bits, go back to normal case
++				| otherwise we fall through
++
++| Now we have a in d0-d1, b in d2-d3, and the largest exponent in d6 (the
++| signs are stored in a0 and a1).
++
++Laddsf$3:
++| Here we have to decide whether to add or subtract the numbers
++#ifndef __mcoldfire__
++	exg	d6,a0		| get signs back
++	exg	d7,a1		| and save the exponents
++#else
++	movel	d6,d4
++	movel	a0,d6
++	movel	d4,a0
++	movel	d7,d4
++	movel	a1,d7
++	movel	d4,a1
++#endif
++	eorl	d6,d7		| combine sign bits
++	bmi	Lsubsf$0	| if negative a and b have opposite 
++				| sign so we actually subtract the
++				| numbers
++
++| Here we have both positive or both negative
++#ifndef __mcoldfire__
++	exg	d6,a0		| now we have the exponent in d6
++#else
++	movel	d6,d4
++	movel	a0,d6
++	movel	d4,a0
++#endif
++	movel	a0,d7		| and sign in d7
++	andl	IMM (0x80000000),d7
++| Here we do the addition.
++	addl	d3,d1
++	addxl	d2,d0
++| Note: now we have d2, d3, d4 and d5 to play with! 
++
++| Put the exponent, in the first byte, in d2, to use the "standard" rounding
++| routines:
++	movel	d6,d2
++#ifndef __mcoldfire__
++	lsrw	IMM (8),d2
++#else
++	lsrl	IMM (8),d2
++#endif
++
++| Before rounding normalize so bit #FLT_MANT_DIG is set (we will consider
++| the case of denormalized numbers in the rounding routine itself).
++| As in the addition (not in the subtraction!) we could have set 
++| one more bit we check this:
++	btst	IMM (FLT_MANT_DIG+1),d0	
++	beq	1f
++#ifndef __mcoldfire__
++	lsrl	IMM (1),d0
++	roxrl	IMM (1),d1
++#else
++	lsrl	IMM (1),d1
++	btst	IMM (0),d0
++	beq	10f
++	bset	IMM (31),d1
++10:	lsrl	IMM (1),d0
++#endif
++	addl	IMM (1),d2
++1:
++	lea	pc@(Laddsf$4),a0 | to return from rounding routine
++	PICLEA	SYM (_fpCCR),a1	| check the rounding mode
++#ifdef __mcoldfire__
++	clrl	d6
++#endif
++	movew	a1@(6),d6	| rounding mode in d6
++	beq	Lround$to$nearest
++#ifndef __mcoldfire__
++	cmpw	IMM (ROUND_TO_PLUS),d6
++#else
++	cmpl	IMM (ROUND_TO_PLUS),d6
++#endif
++	bhi	Lround$to$minus
++	blt	Lround$to$zero
++	bra	Lround$to$plus
++Laddsf$4:
++| Put back the exponent, but check for overflow.
++#ifndef __mcoldfire__
++	cmpw	IMM (0xff),d2
++#else
++	cmpl	IMM (0xff),d2
++#endif
++	bhi	1f
++	bclr	IMM (FLT_MANT_DIG-1),d0
++#ifndef __mcoldfire__
++	lslw	IMM (7),d2
++#else
++	lsll	IMM (7),d2
++#endif
++	swap	d2
++	orl	d2,d0
++	bra	Laddsf$ret
++1:
++	moveq	IMM (ADD),d5
++	bra	Lf$overflow
++
++Lsubsf$0:
++| We are here if a > 0 and b < 0 (sign bits cleared).
++| Here we do the subtraction.
++	movel	d6,d7		| put sign in d7
++	andl	IMM (0x80000000),d7
++
++	subl	d3,d1		| result in d0-d1
++	subxl	d2,d0		|
++	beq	Laddsf$ret	| if zero just exit
++	bpl	1f		| if positive skip the following
++	bchg	IMM (31),d7	| change sign bit in d7
++	negl	d1
++	negxl	d0
++1:
++#ifndef __mcoldfire__
++	exg	d2,a0		| now we have the exponent in d2
++	lsrw	IMM (8),d2	| put it in the first byte
++#else
++	movel	d2,d4
++	movel	a0,d2
++	movel	d4,a0
++	lsrl	IMM (8),d2	| put it in the first byte
++#endif
++
++| Now d0-d1 is positive and the sign bit is in d7.
++
++| Note that we do not have to normalize, since in the subtraction bit
++| #FLT_MANT_DIG+1 is never set, and denormalized numbers are handled by
++| the rounding routines themselves.
++	lea	pc@(Lsubsf$1),a0 | to return from rounding routine
++	PICLEA	SYM (_fpCCR),a1	| check the rounding mode
++#ifdef __mcoldfire__
++	clrl	d6
++#endif
++	movew	a1@(6),d6	| rounding mode in d6
++	beq	Lround$to$nearest
++#ifndef __mcoldfire__
++	cmpw	IMM (ROUND_TO_PLUS),d6
++#else
++	cmpl	IMM (ROUND_TO_PLUS),d6
++#endif
++	bhi	Lround$to$minus
++	blt	Lround$to$zero
++	bra	Lround$to$plus
++Lsubsf$1:
++| Put back the exponent (we can't have overflow!). '
++	bclr	IMM (FLT_MANT_DIG-1),d0
++#ifndef __mcoldfire__
++	lslw	IMM (7),d2
++#else
++	lsll	IMM (7),d2
++#endif
++	swap	d2
++	orl	d2,d0
++	bra	Laddsf$ret
++
++| If one of the numbers was too small (difference of exponents >= 
++| FLT_MANT_DIG+2) we return the other (and now we don't have to '
++| check for finiteness or zero).
++Laddsf$a$small:
++	movel	a3,d0
++	PICLEA	SYM (_fpCCR),a0
++	movew	IMM (0),a0@
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5	| restore data registers
++#else
++	moveml	sp@,d2-d7/a2-a5
++	lea	a6@(28),a6	
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	rts		| and return
++
++Laddsf$b$small:
++	movel	a2,d0
++	PICLEA	SYM (_fpCCR),a0
++	movew	IMM (0),a0@
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5	| restore data registers
++#else
++	moveml	sp@,d2-d7/a2-a5
++	lea	a6@(28),a6	
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	rts		| and return
++
++| If the numbers are denormalized remember to put exponent equal to 1.
++
++Laddsf$a$den:
++	movel	d5,d6		| d5 contains 0x01000000
++	swap	d6
++	bra	Laddsf$1
++
++Laddsf$b$den:
++	movel	d5,d7
++	swap	d7
++	notl 	d4		| make d4 into a mask for the fraction
++				| (this was not executed after the jump)
++	bra	Laddsf$2
++
++| The rest is mainly code for the different results which can be 
++| returned (checking always for +/-INFINITY and NaN).
++
++Laddsf$b:
++| Return b (if a is zero).
++	movel	a3,d0
++	cmpl	IMM (0x80000000),d0	| Check if b is -0
++	bne	1f
++	movel	a0,d7
++	andl	IMM (0x80000000),d7	| Use the sign of a
++	clrl	d0
++	bra	Laddsf$ret
++Laddsf$a:
++| Return a (if b is zero).
++	movel	a2,d0
++1:
++	moveq	IMM (ADD),d5
++| We have to check for NaN and +/-infty.
++	movel	d0,d7
++	andl	IMM (0x80000000),d7	| put sign in d7
++	bclr	IMM (31),d0		| clear sign
++	cmpl	IMM (INFINITY),d0	| check for infty or NaN
++	bge	2f
++	movel	d0,d0		| check for zero (we do this because we don't '
++	bne	Laddsf$ret	| want to return -0 by mistake
++	bclr	IMM (31),d7	| if zero be sure to clear sign
++	bra	Laddsf$ret	| if everything OK just return
++2:
++| The value to be returned is either +/-infty or NaN
++	andl	IMM (0x007fffff),d0	| check for NaN
++	bne	Lf$inop			| if mantissa not zero is NaN
++	bra	Lf$infty
++
++Laddsf$ret:
++| Normal exit (a and b nonzero, result is not NaN nor +/-infty).
++| We have to clear the exception flags (just the exception type).
++	PICLEA	SYM (_fpCCR),a0
++	movew	IMM (0),a0@
++	orl	d7,d0		| put sign bit
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5	| restore data registers
++#else
++	moveml	sp@,d2-d7/a2-a5
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	unlk	a6		| and return
++	rts
++
++Laddsf$ret$den:
++| Return a denormalized number (for addition we don't signal underflow) '
++	lsrl	IMM (1),d0	| remember to shift right back once
++	bra	Laddsf$ret	| and return
++
++| Note: when adding two floats of the same sign if either one is 
++| NaN we return NaN without regard to whether the other is finite or 
++| not. When subtracting them (i.e., when adding two numbers of 
++| opposite signs) things are more complicated: if both are INFINITY 
++| we return NaN, if only one is INFINITY and the other is NaN we return
++| NaN, but if it is finite we return INFINITY with the corresponding sign.
++
++Laddsf$nf:
++	moveq	IMM (ADD),d5
++| This could be faster but it is not worth the effort, since it is not
++| executed very often. We sacrifice speed for clarity here.
++	movel	a2,d0	| get the numbers back (remember that we
++	movel	a3,d1	| did some processing already)
++	movel	IMM (INFINITY),d4 | useful constant (INFINITY)
++	movel	d0,d2		| save sign bits
++	movel	d1,d3
++	bclr	IMM (31),d0	| clear sign bits
++	bclr	IMM (31),d1
++| We know that one of them is either NaN of +/-INFINITY
++| Check for NaN (if either one is NaN return NaN)
++	cmpl	d4,d0		| check first a (d0)
++	bhi	Lf$inop		
++	cmpl	d4,d1		| check now b (d1)
++	bhi	Lf$inop		
++| Now comes the check for +/-INFINITY. We know that both are (maybe not
++| finite) numbers, but we have to check if both are infinite whether we
++| are adding or subtracting them.
++	eorl	d3,d2		| to check sign bits
++	bmi	1f
++	movel	d0,d7
++	andl	IMM (0x80000000),d7	| get (common) sign bit
++	bra	Lf$infty
++1:
++| We know one (or both) are infinite, so we test for equality between the
++| two numbers (if they are equal they have to be infinite both, so we
++| return NaN).
++	cmpl	d1,d0		| are both infinite?
++	beq	Lf$inop		| if so return NaN
++
++	movel	d0,d7
++	andl	IMM (0x80000000),d7 | get a's sign bit '
++	cmpl	d4,d0		| test now for infinity
++	beq	Lf$infty	| if a is INFINITY return with this sign
++	bchg	IMM (31),d7	| else we know b is INFINITY and has
++	bra	Lf$infty	| the opposite sign
++
++|=============================================================================
++|                             __mulsf3
++|=============================================================================
++
++| float __mulsf3(float, float);
++	FUNC(__mulsf3)
++SYM (__mulsf3):
++#ifndef __mcoldfire__
++	link	a6,IMM (0)
++	moveml	d2-d7/a2-a5,sp@-
++#else
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
++#endif
++	movel	d0,a2		| store a into a0
++	movel	d1,a3		| store b into a1
++	movel	d0,d7		| d7 will hold the sign of the product
++	eorl	d1,d7		|
++	andl	IMM (0x80000000),d7
++	movel	IMM (INFINITY),d6	| useful constant (+INFINITY)
++	movel	d6,d5			| another (mask for fraction)
++	notl	d5			|
++	movel	IMM (0x00800000),d4	| this is to put hidden bit back
++	bclr	IMM (31),d0		| get rid of a's sign bit '
++	movel	d0,d2			|
++	beq	Lmulsf$a$0		| branch if a is zero
++	bclr	IMM (31),d1		| get rid of b's sign bit '
++	movel	d1,d3		|
++	beq	Lmulsf$b$0	| branch if b is zero
++	cmpl	d6,d0		| is a big?
++	bhi	Lmulsf$inop	| if a is NaN return NaN
++	beq	Lmulsf$inf	| if a is INFINITY we have to check b
++	cmpl	d6,d1		| now compare b with INFINITY
++	bhi	Lmulsf$inop	| is b NaN?
++	beq	Lmulsf$overflow | is b INFINITY?
++| Here we have both numbers finite and nonzero (and with no sign bit).
++| Now we get the exponents into d2 and d3.
++	andl	d6,d2		| and isolate exponent in d2
++	beq	Lmulsf$a$den	| if exponent is zero we have a denormalized
++	andl	d5,d0		| and isolate fraction
++	orl	d4,d0		| and put hidden bit back
++	swap	d2		| I like exponents in the first byte
++#ifndef __mcoldfire__
++	lsrw	IMM (7),d2	| 
++#else
++	lsrl	IMM (7),d2	| 
++#endif
++Lmulsf$1:			| number
++	andl	d6,d3		|
++	beq	Lmulsf$b$den	|
++	andl	d5,d1		|
++	orl	d4,d1		|
++	swap	d3		|
++#ifndef __mcoldfire__
++	lsrw	IMM (7),d3	|
++#else
++	lsrl	IMM (7),d3	|
++#endif
++Lmulsf$2:			|
++#ifndef __mcoldfire__
++	addw	d3,d2		| add exponents
++	subw	IMM (F_BIAS+1),d2 | and subtract bias (plus one)
++#else
++	addl	d3,d2		| add exponents
++	subl	IMM (F_BIAS+1),d2 | and subtract bias (plus one)
++#endif
++
++| We are now ready to do the multiplication. The situation is as follows:
++| both a and b have bit FLT_MANT_DIG-1 set (even if they were 
++| denormalized to start with!), which means that in the product 
++| bit 2*(FLT_MANT_DIG-1) (that is, bit 2*FLT_MANT_DIG-2-32 of the 
++| high long) is set. 
++
++| To do the multiplication let us move the number a little bit around ...
++	movel	d1,d6		| second operand in d6
++	movel	d0,d5		| first operand in d4-d5
++	movel	IMM (0),d4
++	movel	d4,d1		| the sums will go in d0-d1
++	movel	d4,d0
++
++| now bit FLT_MANT_DIG-1 becomes bit 31:
++	lsll	IMM (31-FLT_MANT_DIG+1),d6		
++
++| Start the loop (we loop #FLT_MANT_DIG times):
++	moveq	IMM (FLT_MANT_DIG-1),d3	
++1:	addl	d1,d1		| shift sum 
++	addxl	d0,d0
++	lsll	IMM (1),d6	| get bit bn
++	bcc	2f		| if not set skip sum
++	addl	d5,d1		| add a
++	addxl	d4,d0
++2:
++#ifndef __mcoldfire__
++	dbf	d3,1b		| loop back
++#else
++	subql	IMM (1),d3
++	bpl	1b
++#endif
++
++| Now we have the product in d0-d1, with bit (FLT_MANT_DIG - 1) + FLT_MANT_DIG
++| (mod 32) of d0 set. The first thing to do now is to normalize it so bit 
++| FLT_MANT_DIG is set (to do the rounding).
++#ifndef __mcoldfire__
++	rorl	IMM (6),d1
++	swap	d1
++	movew	d1,d3
++	andw	IMM (0x03ff),d3
++	andw	IMM (0xfd00),d1
++#else
++	movel	d1,d3
++	lsll	IMM (8),d1
++	addl	d1,d1
++	addl	d1,d1
++	moveq	IMM (22),d5
++	lsrl	d5,d3
++	orl	d3,d1
++	andl	IMM (0xfffffd00),d1
++#endif
++	lsll	IMM (8),d0
++	addl	d0,d0
++	addl	d0,d0
++#ifndef __mcoldfire__
++	orw	d3,d0
++#else
++	orl	d3,d0
++#endif
++
++	moveq	IMM (MULTIPLY),d5
++	
++	btst	IMM (FLT_MANT_DIG+1),d0
++	beq	Lround$exit
++#ifndef __mcoldfire__
++	lsrl	IMM (1),d0
++	roxrl	IMM (1),d1
++	addw	IMM (1),d2
++#else
++	lsrl	IMM (1),d1
++	btst	IMM (0),d0
++	beq	10f
++	bset	IMM (31),d1
++10:	lsrl	IMM (1),d0
++	addql	IMM (1),d2
++#endif
++	bra	Lround$exit
++
++Lmulsf$inop:
++	moveq	IMM (MULTIPLY),d5
++	bra	Lf$inop
++
++Lmulsf$overflow:
++	moveq	IMM (MULTIPLY),d5
++	bra	Lf$overflow
++
++Lmulsf$inf:
++	moveq	IMM (MULTIPLY),d5
++| If either is NaN return NaN; else both are (maybe infinite) numbers, so
++| return INFINITY with the correct sign (which is in d7).
++	cmpl	d6,d1		| is b NaN?
++	bhi	Lf$inop		| if so return NaN
++	bra	Lf$overflow	| else return +/-INFINITY
++
++| If either number is zero return zero, unless the other is +/-INFINITY, 
++| or NaN, in which case we return NaN.
++Lmulsf$b$0:
++| Here d1 (==b) is zero.
++	movel	a2,d1		| get a again to check for non-finiteness
++	bra	1f
++Lmulsf$a$0:
++	movel	a3,d1	| get b again to check for non-finiteness
++1:	bclr	IMM (31),d1	| clear sign bit 
++	cmpl	IMM (INFINITY),d1 | and check for a large exponent
++	bge	Lf$inop		| if b is +/-INFINITY or NaN return NaN
++	movel	d7,d0		| else return signed zero
++	PICLEA	SYM (_fpCCR),a0	|
++	movew	IMM (0),a0@	| 
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5	| 
++#else
++	moveml	sp@,d2-d7/a2-a5
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	unlk	a6		| 
++	rts			| 
++
++| If a number is denormalized we put an exponent of 1 but do not put the 
++| hidden bit back into the fraction; instead we shift left until bit 23
++| (the hidden bit) is set, adjusting the exponent accordingly. We do this
++| to ensure that the product of the fractions is close to 1.
++Lmulsf$a$den:
++	movel	IMM (1),d2
++	andl	d5,d0
++1:	addl	d0,d0		| shift a left (until bit 23 is set)
++#ifndef __mcoldfire__
++	subw	IMM (1),d2	| and adjust exponent
++#else
++	subql	IMM (1),d2	| and adjust exponent
++#endif
++	btst	IMM (FLT_MANT_DIG-1),d0
++	bne	Lmulsf$1	|
++	bra	1b		| else loop back
++
++Lmulsf$b$den:
++	movel	IMM (1),d3
++	andl	d5,d1
++1:	addl	d1,d1		| shift b left until bit 23 is set
++#ifndef __mcoldfire__
++	subw	IMM (1),d3	| and adjust exponent
++#else
++	subql	IMM (1),d3	| and adjust exponent
++#endif
++	btst	IMM (FLT_MANT_DIG-1),d1
++	bne	Lmulsf$2	|
++	bra	1b		| else loop back
++
++|=============================================================================
++|                             __divsf3
++|=============================================================================
++
++| float __divsf3(float, float);
++	FUNC(__divsf3)
++SYM (__divsf3):
++#ifndef __mcoldfire__
++	link	a6,IMM (0)
++	moveml	d2-d7/a2-a5,sp@-
++#else
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
++#endif
++	movel	d0,d7			| d7 will hold the sign of the result
++	eorl	d1,d7			|
++	andl	IMM (0x80000000),d7	| 
++	movel	IMM (INFINITY),d6	| useful constant (+INFINITY)
++	movel	d6,d5			| another (mask for fraction)
++	notl	d5			|
++	movel	IMM (0x00800000),d4	| this is to put hidden bit back
++	bclr	IMM (31),d0		| get rid of a's sign bit '
++	movel	d0,d2			|
++	beq	Ldivsf$a$0		| branch if a is zero
++	bclr	IMM (31),d1		| get rid of b's sign bit '
++	movel	d1,d3			|
++	beq	Ldivsf$b$0		| branch if b is zero
++	cmpl	d6,d0			| is a big?
++	bhi	Ldivsf$inop		| if a is NaN return NaN
++	beq	Ldivsf$inf		| if a is INFINITY we have to check b
++	cmpl	d6,d1			| now compare b with INFINITY 
++	bhi	Ldivsf$inop		| if b is NaN return NaN
++	beq	Ldivsf$underflow
++| Here we have both numbers finite and nonzero (and with no sign bit).
++| Now we get the exponents into d2 and d3 and normalize the numbers to
++| ensure that the ratio of the fractions is close to 1. We do this by
++| making sure that bit #FLT_MANT_DIG-1 (hidden bit) is set.
++	andl	d6,d2		| and isolate exponent in d2
++	beq	Ldivsf$a$den	| if exponent is zero we have a denormalized
++	andl	d5,d0		| and isolate fraction
++	orl	d4,d0		| and put hidden bit back
++	swap	d2		| I like exponents in the first byte
++#ifndef __mcoldfire__
++	lsrw	IMM (7),d2	| 
++#else
++	lsrl	IMM (7),d2	| 
++#endif
++Ldivsf$1:			| 
++	andl	d6,d3		|
++	beq	Ldivsf$b$den	|
++	andl	d5,d1		|
++	orl	d4,d1		|
++	swap	d3		|
++#ifndef __mcoldfire__
++	lsrw	IMM (7),d3	|
++#else
++	lsrl	IMM (7),d3	|
++#endif
++Ldivsf$2:			|
++#ifndef __mcoldfire__
++	subw	d3,d2		| subtract exponents
++ 	addw	IMM (F_BIAS),d2	| and add bias
++#else
++	subl	d3,d2		| subtract exponents
++ 	addl	IMM (F_BIAS),d2	| and add bias
++#endif
++ 
++| We are now ready to do the division. We have prepared things in such a way
++| that the ratio of the fractions will be less than 2 but greater than 1/2.
++| At this point the registers in use are:
++| d0	holds a (first operand, bit FLT_MANT_DIG=0, bit FLT_MANT_DIG-1=1)
++| d1	holds b (second operand, bit FLT_MANT_DIG=1)
++| d2	holds the difference of the exponents, corrected by the bias
++| d7	holds the sign of the ratio
++| d4, d5, d6 hold some constants
++	movel	d7,a0		| d6-d7 will hold the ratio of the fractions
++	movel	IMM (0),d6	| 
++	movel	d6,d7
++
++	moveq	IMM (FLT_MANT_DIG+1),d3
++1:	cmpl	d0,d1		| is a < b?
++	bhi	2f		|
++	bset	d3,d6		| set a bit in d6
++	subl	d1,d0		| if a >= b  a <-- a-b
++	beq	3f		| if a is zero, exit
++2:	addl	d0,d0		| multiply a by 2
++#ifndef __mcoldfire__
++	dbra	d3,1b
++#else
++	subql	IMM (1),d3
++	bpl	1b
++#endif
++
++| Now we keep going to set the sticky bit ...
++	moveq	IMM (FLT_MANT_DIG),d3
++1:	cmpl	d0,d1
++	ble	2f
++	addl	d0,d0
++#ifndef __mcoldfire__
++	dbra	d3,1b
++#else
++	subql	IMM(1),d3
++	bpl	1b
++#endif
++	movel	IMM (0),d1
++	bra	3f
++2:	movel	IMM (0),d1
++#ifndef __mcoldfire__
++	subw	IMM (FLT_MANT_DIG),d3
++	addw	IMM (31),d3
++#else
++	subl	IMM (FLT_MANT_DIG),d3
++	addl	IMM (31),d3
++#endif
++	bset	d3,d1
++3:
++	movel	d6,d0		| put the ratio in d0-d1
++	movel	a0,d7		| get sign back
++
++| Because of the normalization we did before we are guaranteed that 
++| d0 is smaller than 2^26 but larger than 2^24. Thus bit 26 is not set,
++| bit 25 could be set, and if it is not set then bit 24 is necessarily set.
++	btst	IMM (FLT_MANT_DIG+1),d0		
++	beq	1f              | if it is not set, then bit 24 is set
++	lsrl	IMM (1),d0	|
++#ifndef __mcoldfire__
++	addw	IMM (1),d2	|
++#else
++	addl	IMM (1),d2	|
++#endif
++1:
++| Now round, check for over- and underflow, and exit.
++	moveq	IMM (DIVIDE),d5
++	bra	Lround$exit
++
++Ldivsf$inop:
++	moveq	IMM (DIVIDE),d5
++	bra	Lf$inop
++
++Ldivsf$overflow:
++	moveq	IMM (DIVIDE),d5
++	bra	Lf$overflow
++
++Ldivsf$underflow:
++	moveq	IMM (DIVIDE),d5
++	bra	Lf$underflow
++
++Ldivsf$a$0:
++	moveq	IMM (DIVIDE),d5
++| If a is zero check to see whether b is zero also. In that case return
++| NaN; then check if b is NaN, and return NaN also in that case. Else
++| return a properly signed zero.
++	andl	IMM (0x7fffffff),d1	| clear sign bit and test b
++	beq	Lf$inop			| if b is also zero return NaN
++	cmpl	IMM (INFINITY),d1	| check for NaN
++	bhi	Lf$inop			| 
++	movel	d7,d0			| else return signed zero
++	PICLEA	SYM (_fpCCR),a0		|
++	movew	IMM (0),a0@		|
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5		| 
++#else
++	moveml	sp@,d2-d7/a2-a5		| 
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	unlk	a6			| 
++	rts				| 
++	
++Ldivsf$b$0:
++	moveq	IMM (DIVIDE),d5
++| If we got here a is not zero. Check if a is NaN; in that case return NaN,
++| else return +/-INFINITY. Remember that a is in d0 with the sign bit 
++| cleared already.
++	cmpl	IMM (INFINITY),d0	| compare d0 with INFINITY
++	bhi	Lf$inop			| if larger it is NaN
++	bra	Lf$div$0		| else signal DIVIDE_BY_ZERO
++
++Ldivsf$inf:
++	moveq	IMM (DIVIDE),d5
++| If a is INFINITY we have to check b
++	cmpl	IMM (INFINITY),d1	| compare b with INFINITY 
++	bge	Lf$inop			| if b is NaN or INFINITY return NaN
++	bra	Lf$overflow		| else return overflow
++
++| If a number is denormalized we put an exponent of 1 but do not put the 
++| bit back into the fraction.
++Ldivsf$a$den:
++	movel	IMM (1),d2
++	andl	d5,d0
++1:	addl	d0,d0		| shift a left until bit FLT_MANT_DIG-1 is set
++#ifndef __mcoldfire__
++	subw	IMM (1),d2	| and adjust exponent
++#else
++	subl	IMM (1),d2	| and adjust exponent
++#endif
++	btst	IMM (FLT_MANT_DIG-1),d0
++	bne	Ldivsf$1
++	bra	1b
++
++Ldivsf$b$den:
++	movel	IMM (1),d3
++	andl	d5,d1
++1:	addl	d1,d1		| shift b left until bit FLT_MANT_DIG is set
++#ifndef __mcoldfire__
++	subw	IMM (1),d3	| and adjust exponent
++#else
++	subl	IMM (1),d3	| and adjust exponent
++#endif
++	btst	IMM (FLT_MANT_DIG-1),d1
++	bne	Ldivsf$2
++	bra	1b
++
++Lround$exit:
++| This is a common exit point for __mulsf3 and __divsf3. 
++
++| First check for underlow in the exponent:
++#ifndef __mcoldfire__
++	cmpw	IMM (-FLT_MANT_DIG-1),d2		
++#else
++	cmpl	IMM (-FLT_MANT_DIG-1),d2		
++#endif
++	blt	Lf$underflow	
++| It could happen that the exponent is less than 1, in which case the 
++| number is denormalized. In this case we shift right and adjust the 
++| exponent until it becomes 1 or the fraction is zero (in the latter case 
++| we signal underflow and return zero).
++	movel	IMM (0),d6	| d6 is used temporarily
++#ifndef __mcoldfire__
++	cmpw	IMM (1),d2	| if the exponent is less than 1 we 
++#else
++	cmpl	IMM (1),d2	| if the exponent is less than 1 we 
++#endif
++	bge	2f		| have to shift right (denormalize)
++1:
++#ifndef __mcoldfire__
++	addw	IMM (1),d2	| adjust the exponent
++	lsrl	IMM (1),d0	| shift right once 
++	roxrl	IMM (1),d1	|
++	roxrl	IMM (1),d6	| d6 collect bits we would lose otherwise
++	cmpw	IMM (1),d2	| is the exponent 1 already?
++#else
++	addql	IMM (1),d2	| adjust the exponent
++	lsrl	IMM (1),d6
++	btst	IMM (0),d1
++	beq	11f
++	bset	IMM (31),d6
++11:	lsrl	IMM (1),d1
++	btst	IMM (0),d0
++	beq	10f
++	bset	IMM (31),d1
++10:	lsrl	IMM (1),d0
++	cmpl	IMM (1),d2	| is the exponent 1 already?
++#endif
++	beq	2f		| if not loop back
++	bra	1b              |
++	bra	Lf$underflow	| safety check, shouldn't execute '
++2:	orl	d6,d1		| this is a trick so we don't lose  '
++				| the extra bits which were flushed right
++| Now call the rounding routine (which takes care of denormalized numbers):
++	lea	pc@(Lround$0),a0 | to return from rounding routine
++	PICLEA	SYM (_fpCCR),a1	| check the rounding mode
++#ifdef __mcoldfire__
++	clrl	d6
++#endif
++	movew	a1@(6),d6	| rounding mode in d6
++	beq	Lround$to$nearest
++#ifndef __mcoldfire__
++	cmpw	IMM (ROUND_TO_PLUS),d6
++#else
++	cmpl	IMM (ROUND_TO_PLUS),d6
++#endif
++	bhi	Lround$to$minus
++	blt	Lround$to$zero
++	bra	Lround$to$plus
++Lround$0:
++| Here we have a correctly rounded result (either normalized or denormalized).
++
++| Here we should have either a normalized number or a denormalized one, and
++| the exponent is necessarily larger or equal to 1 (so we don't have to  '
++| check again for underflow!). We have to check for overflow or for a 
++| denormalized number (which also signals underflow).
++| Check for overflow (i.e., exponent >= 255).
++#ifndef __mcoldfire__
++	cmpw	IMM (0x00ff),d2
++#else
++	cmpl	IMM (0x00ff),d2
++#endif
++	bge	Lf$overflow
++| Now check for a denormalized number (exponent==0).
++	movew	d2,d2
++	beq	Lf$den
++1:
++| Put back the exponents and sign and return.
++#ifndef __mcoldfire__
++	lslw	IMM (7),d2	| exponent back to fourth byte
++#else
++	lsll	IMM (7),d2	| exponent back to fourth byte
++#endif
++	bclr	IMM (FLT_MANT_DIG-1),d0
++	swap	d0		| and put back exponent
++#ifndef __mcoldfire__
++	orw	d2,d0		| 
++#else
++	orl	d2,d0
++#endif
++	swap	d0		|
++	orl	d7,d0		| and sign also
++
++	PICLEA	SYM (_fpCCR),a0
++	movew	IMM (0),a0@
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5
++#else
++	moveml	sp@,d2-d7/a2-a5
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	unlk	a6
++	rts
++
++|=============================================================================
++|                             __negsf2
++|=============================================================================
++
++| This is trivial and could be shorter if we didn't bother checking for NaN '
++| and +/-INFINITY.
++
++| float __negsf2(float);
++	FUNC(__negsf2)
++SYM (__negsf2):
++#ifndef __mcoldfire__
++	link	a6,IMM (0)
++	moveml	d2-d7/a2-a5,sp@-
++#else
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
++#endif
++	moveq	IMM (NEGATE),d5
++	bchg	IMM (31),d0	| negate
++	movel	d0,d1		| make a positive copy
++	bclr	IMM (31),d1	|
++	tstl	d1		| check for zero
++	beq	2f		| if zero (either sign) return +zero
++	cmpl	IMM (INFINITY),d1 | compare to +INFINITY
++	blt	1f		|
++	bhi	Lf$inop		| if larger (fraction not zero) is NaN
++	movel	d0,d7		| else get sign and return INFINITY
++	andl	IMM (0x80000000),d7
++	bra	Lf$infty		
++1:	PICLEA	SYM (_fpCCR),a0
++	movew	IMM (0),a0@
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5
++#else
++	moveml	sp@,d2-d7/a2-a5
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	unlk	a6
++	rts
++2:	bclr	IMM (31),d0
++	bra	1b
++
++|=============================================================================
++|                             __cmpsf2
++|=============================================================================
++
++GREATER =  1
++LESS    = -1
++EQUAL   =  0
++
++| Last int arg is actually sent in a0!
++| int __cmpsf2_internal(float, float, int);
++SYM (__cmpsf2_internal):
++#ifndef __mcoldfire__
++	link	a6,IMM (0)
++	moveml	d2-d7/a2-a5,sp@- 	| save registers
++#else
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
++#endif
++	moveq	IMM (COMPARE),d5
++| Check if either is NaN, and in that case return garbage and signal
++| INVALID_OPERATION. Check also if either is zero, and clear the signs
++| if necessary.
++	movel	d0,d6
++	andl	IMM (0x7fffffff),d0
++	beq	Lcmpsf$a$0
++	cmpl	IMM (0x7f800000),d0
++	bhi	Lcmpf$inop
++Lcmpsf$1:
++	movel	d1,d7
++	andl	IMM (0x7fffffff),d1
++	beq	Lcmpsf$b$0
++	cmpl	IMM (0x7f800000),d1
++	bhi	Lcmpf$inop
++Lcmpsf$2:
++| Check the signs
++	eorl	d6,d7
++	bpl	1f
++| If the signs are not equal check if a >= 0
++	tstl	d6
++	bpl	Lcmpsf$a$gt$b	| if (a >= 0 && b < 0) => a > b
++	bmi	Lcmpsf$b$gt$a	| if (a < 0 && b >= 0) => a < b
++1:
++| If the signs are equal check for < 0
++	tstl	d6
++	bpl	1f
++| If both are negative exchange them
++#ifndef __mcoldfire__
++	exg	d0,d1
++#else
++	movel	d0,d7
++	movel	d1,d0
++	movel	d7,d1
++#endif
++1:
++| Now that they are positive we just compare them as longs (does this also
++| work for denormalized numbers?).
++	cmpl	d0,d1
++	bhi	Lcmpsf$b$gt$a	| |b| > |a|
++	bne	Lcmpsf$a$gt$b	| |b| < |a|
++| If we got here a == b.
++	movel	IMM (EQUAL),d0
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
++#else
++	moveml	sp@,d2-d7/a2-a5
++#endif
++	unlk	a6
++	rts
++Lcmpsf$a$gt$b:
++	movel	IMM (GREATER),d0
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
++#else
++	moveml	sp@,d2-d7/a2-a5
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	unlk	a6
++	rts
++Lcmpsf$b$gt$a:
++	movel	IMM (LESS),d0
++#ifndef __mcoldfire__
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
++#else
++	moveml	sp@,d2-d7/a2-a5
++	| XXX if frame pointer is ever removed, stack pointer must
++	| be adjusted here.
++#endif
++	unlk	a6
++	rts
++
++Lcmpsf$a$0:	
++	bclr	IMM (31),d6
++	bra	Lcmpsf$1
++Lcmpsf$b$0:
++	bclr	IMM (31),d7
++	bra	Lcmpsf$2
++
++Lcmpf$inop:
++	movel	a0,d0
++	moveq	IMM (INEXACT_RESULT+INVALID_OPERATION),d7
++	moveq	IMM (SINGLE_FLOAT),d6
++	PICJUMP	$_exception_handler
++
++| int __cmpsf2(float, float);
++	FUNC(__cmpsf2)
++SYM (__cmpsf2):
++	lea	1.w,a0
++	bra	SYM (__cmpsf2_internal)
++
++#endif /* L_float */
++
++| gcc expects the routines __eqdf2, __nedf2, __gtdf2, __gedf2,
++| __ledf2, __ltdf2 to all return the same value as a direct call to
++| __cmpdf2 would.  In this implementation, each of these routines
++| simply calls __cmpdf2.  It would be more efficient to give the
++| __cmpdf2 routine several names, but separating them out will make it
++| easier to write efficient versions of these routines someday.
++| If the operands recompare unordered unordered __gtdf2 and __gedf2 return -1.
++| The other routines return 1.
++
++| The comments above about __eqdf2, et. al., also apply to __eqsf2,
++| et. al., except that the latter call __cmpsf2 rather than __cmpdf2.
++
++#ifdef  L_eqsf2
++	.text
++	FUNC(__eqsf2)
++	.globl	SYM (__eqsf2)
++SYM (__eqsf2):
++	lea	1.w,a0
++	bra	SYM (__cmpsf2_internal)
++
++#endif /* L_eqsf2 */
++
++#ifdef  L_nesf2
++	.text
++	FUNC(__nesf2)
++	.globl	SYM (__nesf2)
++SYM (__nesf2):
++	lea	1.w,a0
++	bra	SYM (__cmpsf2_internal)
++#endif /* L_nesf2 */
++
++#ifdef  L_gtsf2
++	.text
++	FUNC(__gtsf2)
++	.globl	SYM (__gtsf2)
++SYM (__gtsf2):
++	lea	-1.w,a0
++	bra	SYM (__cmpsf2_internal)
++#endif /* L_gtsf2 */
++
++#ifdef  L_gesf2
++	.text
++	FUNC(__gesf2)
++	.globl	SYM (__gesf2)
++SYM (__gesf2):
++	lea	-1.w,a0
++	bra	SYM (__cmpsf2_internal)
++#endif /* L_gesf2 */
++
++#ifdef  L_ltsf2
++	.text
++	FUNC(__ltsf2)
++	.globl	SYM (__ltsf2)
++SYM (__ltsf2):
++	lea	1.w,a0
++	bra	SYM (__cmpsf2_internal)
++#endif /* L_ltsf2 */
++
++#ifdef  L_lesf2
++	.text
++	FUNC(__lesf2)
++	.globl	SYM (__lesf2)
++SYM (__lesf2):
++	lea	1.w,a0
++	bra	SYM (__cmpsf2_internal)
++#endif /* L_lesf2 */
+diff --git a/gcc/config/m68k/lb1sf68.asm b/gcc/config/m68k/lb1sf68.asm
+index 0339a092c4f..6ed226b0f76 100644
+--- a/gcc/config/m68k/lb1sf68.asm
++++ b/gcc/config/m68k/lb1sf68.asm
+@@ -421,9 +421,9 @@ $_exception_handler:
+ 	PICPEA	SYM (_fpCCR),a1	| yes, push address of _fpCCR
+ 	trap	IMM (FPTRAP)	| and trap
+ #ifndef __mcoldfire__
+-1:	moveml	sp@+,d2-d7	| restore data registers
++1:	moveml	sp@+,d2-d7/a2-a5	| restore data registers
+ #else
+-1:	moveml	sp@,d2-d7
++1:	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -431,6 +431,14 @@ $_exception_handler:
+ 	rts
+ #endif /* L_floatex */
+ 
++#ifdef __FASTCALL__
++
++#ifndef  L_float
++#include "lb1sf68-fast.asm"
++#endif
++
++#else
++
+ #ifdef  L_mulsi3
+ 	.text
+ 	FUNC(__mulsi3)
+@@ -620,6 +628,7 @@ SYM (__modsi3):
+ 	rts
+ #endif /* L_modsi3 */
+ 
++#endif /* __FASTCALL__ */
+ 
+ #ifdef  L_double
+ 
+@@ -666,7 +675,9 @@ ROUND_TO_MINUS    = 3 | round result towards minus infinity
+ 	.globl SYM (__negdf2)
+ 	.globl SYM (__cmpdf2)
+ 	.globl SYM (__cmpdf2_internal)
++#ifdef __ELF__
+ 	.hidden SYM (__cmpdf2_internal)
++#endif
+ 
+ 	.text
+ 	.even
+@@ -753,10 +764,10 @@ SYM (__subdf3):
+ SYM (__adddf3):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)	| everything will be done in registers
+-	moveml	d2-d7,sp@-	| save all data registers and a2 (but d0-d1)
++	moveml	d2-d7/a2-a5,sp@-	| save all data registers and a2-a5 (but d0-d1)
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	movel	a6@(8),d0	| get first operand
+ 	movel	a6@(12),d1	| 
+@@ -834,9 +845,8 @@ Ladddf$2:
+ | exponents in a2-a3.
+ 
+ #ifndef __mcoldfire__
+-	moveml	a2-a3,sp@-	| save the address registers
++	movel	a3,sp@-		| save the address register
+ #else
+-	movel	a2,sp@-	
+ 	movel	a3,sp@-	
+ 	movel	a4,sp@-	
+ #endif
+@@ -1119,11 +1129,10 @@ Ladddf$4:
+ 	andl	IMM (0x80000000),d7 | d7 now has the sign
+ 
+ #ifndef __mcoldfire__
+-	moveml	sp@+,a2-a3	
++	movel	sp@+,a3	
+ #else
+ 	movel	sp@+,a4	
+ 	movel	sp@+,a3	
+-	movel	sp@+,a2	
+ #endif
+ 
+ | Before rounding normalize so bit #DBL_MANT_DIG is set (we will consider
+@@ -1227,11 +1236,10 @@ Lsubdf$0:
+ 	movel	a0,d7
+ 	andl	IMM (0x80000000),d7 | isolate sign bit
+ #ifndef __mcoldfire__
+-	moveml	sp@+,a2-a3	|
++	movel	sp@+,a3  	|
+ #else
+ 	movel	sp@+,a4
+ 	movel	sp@+,a3
+-	movel	sp@+,a2
+ #endif
+ 
+ | Before rounding normalize so bit #DBL_MANT_DIG is set (we will consider
+@@ -1300,20 +1308,19 @@ Lsubdf$1:
+ | check for finiteness or zero).
+ Ladddf$a$small:
+ #ifndef __mcoldfire__
+-	moveml	sp@+,a2-a3	
++	movel	sp@+,a3	
+ #else
+ 	movel	sp@+,a4
+ 	movel	sp@+,a3
+-	movel	sp@+,a2
+ #endif
+ 	movel	a6@(16),d0
+ 	movel	a6@(20),d1
+ 	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7	| restore data registers
++	moveml	sp@+,d2-d7/a2-a5	| restore data registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -1322,20 +1329,19 @@ Ladddf$a$small:
+ 
+ Ladddf$b$small:
+ #ifndef __mcoldfire__
+-	moveml	sp@+,a2-a3	
++	movel	sp@+,a3	
+ #else
+ 	movel	sp@+,a4	
+ 	movel	sp@+,a3	
+-	movel	sp@+,a2	
+ #endif
+ 	movel	a6@(8),d0
+ 	movel	a6@(12),d1
+ 	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7	| restore data registers
++	moveml	sp@+,d2-d7/a2-a5	| restore data registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -1384,11 +1390,10 @@ Ladddf$a:
+ 	
+ Ladddf$ret$1:
+ #ifndef __mcoldfire__
+-	moveml	sp@+,a2-a3	| restore regs and exit
++	movel	sp@+,a3	| restore regs and exit
+ #else
+ 	movel	sp@+,a4
+ 	movel	sp@+,a3
+-	movel	sp@+,a2
+ #endif
+ 
+ Ladddf$ret:
+@@ -1397,9 +1402,9 @@ Ladddf$ret:
+ 	movew	IMM (0),a0@
+ 	orl	d7,d0		| put sign bit back
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7
++	moveml	sp@+,d2-d7/a2-a5
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -1477,10 +1482,10 @@ Ladddf$nf:
+ SYM (__muldf3):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)
+-	moveml	d2-d7,sp@-
++	moveml	d2-d7/a2-a5,sp@-
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	movel	a6@(8),d0		| get a into d0-d1
+ 	movel	a6@(12),d1		| 
+@@ -1551,13 +1556,7 @@ Lmuldf$2:				|
+ | enough to keep everything in them. So we use the address registers to keep
+ | some intermediate data.
+ 
+-#ifndef __mcoldfire__
+-	moveml	a2-a3,sp@-	| save a2 and a3 for temporary use
+-#else
+-	movel	a2,sp@-
+-	movel	a3,sp@-
+-	movel	a4,sp@-
+-#endif
++	movel	a3,sp@-		| save a3 for temporary use
+ 	movel	IMM (0),a2	| a2 is a null register
+ 	movel	d4,a3		| and a3 will preserve the exponent
+ 
+@@ -1647,13 +1646,7 @@ Lmuldf$2:				|
+ #endif
+ 
+ 	movel	a3,d4		| restore exponent
+-#ifndef __mcoldfire__
+-	moveml	sp@+,a2-a3
+-#else
+-	movel	sp@+,a4
+ 	movel	sp@+,a3
+-	movel	sp@+,a2
+-#endif
+ 
+ | Now we have the product in d0-d1-d2-d3, with bit 8 of d0 set. The 
+ | first thing to do now is to normalize it so bit 8 becomes bit 
+@@ -1759,9 +1752,9 @@ Lmuldf$a$0:
+ 	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7
++	moveml	sp@+,d2-d7/a2-a5
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -1810,10 +1803,10 @@ Lmuldf$b$den:
+ SYM (__divdf3):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)
+-	moveml	d2-d7,sp@-
++	moveml	d2-d7/a2-a5,sp@-
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	movel	a6@(8),d0	| get a into d0-d1
+ 	movel	a6@(12),d1	| 
+@@ -2045,9 +2038,9 @@ Ldivdf$a$0:
+ 	PICLEA	SYM (_fpCCR),a0	| clear exception flags
+ 	movew	IMM (0),a0@	|
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7	| 
++	moveml	sp@+,d2-d7/a2-a5	| 
+ #else
+-	moveml	sp@,d2-d7	| 
++	moveml	sp@,d2-d7/a2-a5	| 
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -2234,9 +2227,9 @@ Lround$0:
+ 	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7
++	moveml	sp@+,d2-d7/a2-a5
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -2252,10 +2245,10 @@ Lround$0:
+ SYM (__negdf2):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)
+-	moveml	d2-d7,sp@-
++	moveml	d2-d7/a2-a5,sp@-
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	moveq	IMM (NEGATE),d5
+ 	movel	a6@(8),d0	| get number to negate in d0-d1
+@@ -2277,9 +2270,9 @@ SYM (__negdf2):
+ 1:	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7
++	moveml	sp@+,d2-d7/a2-a5
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -2300,10 +2293,10 @@ EQUAL   =  0
+ SYM (__cmpdf2_internal):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)
+-	moveml	d2-d7,sp@- 	| save registers
++	moveml	d2-d7/a2-a5,sp@- 	| save registers
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	moveq	IMM (COMPARE),d5
+ 	movel	a6@(8),d0	| get first operand
+@@ -2366,9 +2359,9 @@ Lcmpdf$1:
+ | If we got here a == b.
+ 	movel	IMM (EQUAL),d0
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7 	| put back the registers
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -2377,9 +2370,9 @@ Lcmpdf$1:
+ Lcmpdf$a$gt$b:
+ 	movel	IMM (GREATER),d0
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7 	| put back the registers
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -2388,9 +2381,9 @@ Lcmpdf$a$gt$b:
+ Lcmpdf$b$gt$a:
+ 	movel	IMM (LESS),d0
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7 	| put back the registers
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -2581,7 +2574,9 @@ ROUND_TO_MINUS    = 3 | round result towards minus infinity
+ 	.globl SYM (__negsf2)
+ 	.globl SYM (__cmpsf2)
+ 	.globl SYM (__cmpsf2_internal)
++#ifdef __ELF__
+ 	.hidden SYM (__cmpsf2_internal)
++#endif
+ 
+ | These are common routines to return and signal exceptions.	
+ 
+@@ -2626,6 +2621,12 @@ Lf$div$0:
+ 	moveq	IMM (SINGLE_FLOAT),d6
+ 	PICJUMP	$_exception_handler
+ 
++#ifdef __FASTCALL__
++
++#include "lb1sf68-fast.asm"
++
++#else
++
+ |=============================================================================
+ |=============================================================================
+ |                         single precision routines
+@@ -2664,10 +2665,10 @@ SYM (__subsf3):
+ SYM (__addsf3):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)	| everything will be done in registers
+-	moveml	d2-d7,sp@-	| save all data registers but d0-d1
++	moveml	d2-d7/a2-a5,sp@-	| save all data registers but d0-d1
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	movel	a6@(8),d0	| get first operand
+ 	movel	a6@(12),d1	| get second operand
+@@ -3005,9 +3006,9 @@ Laddsf$a$small:
+ 	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7	| restore data registers
++	moveml	sp@+,d2-d7/a2-a5	| restore data registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3019,9 +3020,9 @@ Laddsf$b$small:
+ 	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7	| restore data registers
++	moveml	sp@+,d2-d7/a2-a5	| restore data registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3082,9 +3083,9 @@ Laddsf$ret:
+ 	movew	IMM (0),a0@
+ 	orl	d7,d0		| put sign bit
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7	| restore data registers
++	moveml	sp@+,d2-d7/a2-a5	| restore data registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3151,10 +3152,10 @@ Laddsf$nf:
+ SYM (__mulsf3):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)
+-	moveml	d2-d7,sp@-
++	moveml	d2-d7/a2-a5,sp@-
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	movel	a6@(8),d0	| get a into d0
+ 	movel	a6@(12),d1	| and b into d1
+@@ -3318,9 +3319,9 @@ Lmulsf$a$0:
+ 	PICLEA	SYM (_fpCCR),a0	|
+ 	movew	IMM (0),a0@	| 
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7	| 
++	moveml	sp@+,d2-d7/a2-a5	| 
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3366,10 +3367,10 @@ Lmulsf$b$den:
+ SYM (__divsf3):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)
+-	moveml	d2-d7,sp@-
++	moveml	d2-d7/a2-a5,sp@-
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	movel	a6@(8),d0		| get a into d0
+ 	movel	a6@(12),d1		| and b into d1
+@@ -3519,9 +3520,9 @@ Ldivsf$a$0:
+ 	PICLEA	SYM (_fpCCR),a0		|
+ 	movew	IMM (0),a0@		|
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7		| 
++	moveml	sp@+,d2-d7/a2-a5		| 
+ #else
+-	moveml	sp@,d2-d7		| 
++	moveml	sp@,d2-d7/a2-a5		| 
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3671,9 +3672,9 @@ Lround$0:
+ 	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7
++	moveml	sp@+,d2-d7/a2-a5
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3692,10 +3693,10 @@ Lround$0:
+ SYM (__negsf2):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)
+-	moveml	d2-d7,sp@-
++	moveml	d2-d7/a2-a5,sp@-
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	moveq	IMM (NEGATE),d5
+ 	movel	a6@(8),d0	| get number to negate in d0
+@@ -3713,9 +3714,9 @@ SYM (__negsf2):
+ 1:	PICLEA	SYM (_fpCCR),a0
+ 	movew	IMM (0),a0@
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7
++	moveml	sp@+,d2-d7/a2-a5
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3736,10 +3737,10 @@ EQUAL   =  0
+ SYM (__cmpsf2_internal):
+ #ifndef __mcoldfire__
+ 	link	a6,IMM (0)
+-	moveml	d2-d7,sp@- 	| save registers
++	moveml	d2-d7/a2-a5,sp@- 	| save registers
+ #else
+-	link	a6,IMM (-24)
+-	moveml	d2-d7,sp@
++	link	a6,IMM (-40)
++	moveml	d2-d7/a2-a5,sp@
+ #endif
+ 	moveq	IMM (COMPARE),d5
+ 	movel	a6@(8),d0	| get first operand
+@@ -3787,18 +3788,18 @@ Lcmpsf$2:
+ | If we got here a == b.
+ 	movel	IMM (EQUAL),d0
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7 	| put back the registers
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ #endif
+ 	unlk	a6
+ 	rts
+ Lcmpsf$a$gt$b:
+ 	movel	IMM (GREATER),d0
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7 	| put back the registers
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3807,9 +3808,9 @@ Lcmpsf$a$gt$b:
+ Lcmpsf$b$gt$a:
+ 	movel	IMM (LESS),d0
+ #ifndef __mcoldfire__
+-	moveml	sp@+,d2-d7 	| put back the registers
++	moveml	sp@+,d2-d7/a2-a5 	| put back the registers
+ #else
+-	moveml	sp@,d2-d7
++	moveml	sp@,d2-d7/a2-a5
+ 	| XXX if frame pointer is ever removed, stack pointer must
+ 	| be adjusted here.
+ #endif
+@@ -3840,6 +3841,8 @@ SYM (__cmpsf2):
+ 	unlk	a6
+ 	rts
+ 
++#endif /* __FASTCALL__ */
++
+ |=============================================================================
+ |                           rounding routines
+ |=============================================================================
+@@ -4026,7 +4029,7 @@ SYM (__ledf2):
+ | The comments above about __eqdf2, et. al., also apply to __eqsf2,
+ | et. al., except that the latter call __cmpsf2 rather than __cmpdf2.
+ 
+-#ifdef  L_eqsf2
++#if defined(L_eqsf2) && !defined(__FASTCALL__)
+ 	.text
+ 	FUNC(__eqsf2)
+ 	.globl	SYM (__eqsf2)
+@@ -4040,7 +4043,7 @@ SYM (__eqsf2):
+ 	rts
+ #endif /* L_eqsf2 */
+ 
+-#ifdef  L_nesf2
++#if defined(L_nesf2) && !defined(__FASTCALL__)
+ 	.text
+ 	FUNC(__nesf2)
+ 	.globl	SYM (__nesf2)
+@@ -4054,7 +4057,7 @@ SYM (__nesf2):
+ 	rts
+ #endif /* L_nesf2 */
+ 
+-#ifdef  L_gtsf2
++#if defined(L_gtsf2) && !defined(__FASTCALL__)
+ 	.text
+ 	FUNC(__gtsf2)
+ 	.globl	SYM (__gtsf2)
+@@ -4068,7 +4071,7 @@ SYM (__gtsf2):
+ 	rts
+ #endif /* L_gtsf2 */
+ 
+-#ifdef  L_gesf2
++#if defined(L_gesf2) && !defined(__FASTCALL__)
+ 	.text
+ 	FUNC(__gesf2)
+ 	.globl	SYM (__gesf2)
+@@ -4082,7 +4085,7 @@ SYM (__gesf2):
+ 	rts
+ #endif /* L_gesf2 */
+ 
+-#ifdef  L_ltsf2
++#if defined(L_ltsf2) && !defined(__FASTCALL__)
+ 	.text
+ 	FUNC(__ltsf2)
+ 	.globl	SYM (__ltsf2)
+@@ -4096,7 +4099,7 @@ SYM (__ltsf2):
+ 	rts
+ #endif /* L_ltsf2 */
+ 
+-#ifdef  L_lesf2
++#if defined(L_lesf2) && !defined(__FASTCALL__)
+ 	.text
+ 	FUNC(__lesf2)
+ 	.globl	SYM (__lesf2)
+diff --git a/gcc/config/m68k/linux.h b/gcc/config/m68k/linux.h
+index 82417b477bd..672a194b033 100644
+--- a/gcc/config/m68k/linux.h
++++ b/gcc/config/m68k/linux.h
+@@ -171,7 +171,7 @@ along with GCC; see the file COPYING3.  If not see
+ 
+ #undef FUNCTION_VALUE
+ #define FUNCTION_VALUE(VALTYPE, FUNC)					\
+-  m68k_function_value (VALTYPE, FUNC)
++  m68k_function_value (VALTYPE, FUNC, true)
+ 
+ /* Define how to find the value returned by a library function
+    assuming the value has mode MODE.
+diff --git a/gcc/config/m68k/m68k-protos.h b/gcc/config/m68k/m68k-protos.h
+index ad02026309a..033bf7ea08e 100644
+--- a/gcc/config/m68k/m68k-protos.h
++++ b/gcc/config/m68k/m68k-protos.h
+@@ -63,7 +63,7 @@ extern rtx m68k_legitimize_tls_address (rtx);
+ extern bool m68k_tls_reference_p (rtx, bool);
+ extern int valid_dbcc_comparison_p_2 (rtx, enum machine_mode);
+ extern rtx m68k_libcall_value (enum machine_mode);
+-extern rtx m68k_function_value (const_tree, const_tree);
++extern rtx m68k_function_value (const_tree, const_tree, bool);
+ extern int emit_move_sequence (rtx *, enum machine_mode, rtx);
+ extern bool m68k_movem_pattern_p (rtx, rtx, HOST_WIDE_INT, bool);
+ extern const char *m68k_output_movem (rtx *, rtx, HOST_WIDE_INT, bool);
+@@ -100,3 +100,15 @@ extern void init_68881_table (void);
+ extern rtx m68k_legitimize_call_address (rtx);
+ extern rtx m68k_legitimize_sibcall_address (rtx);
+ extern int m68k_hard_regno_rename_ok(unsigned int, unsigned int);
++
++#ifdef RTX_CODE
++#ifdef TREE_CODE
++void m68k_init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, tree, int);
++void m68k_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode, const_tree, bool);
++rtx m68k_function_arg (CUMULATIVE_ARGS *, enum machine_mode, const_tree, bool);
++#endif
++#endif
++void m68k_order_regs_for_local_alloc(void);
++void m68k_call_abi_override (const_tree);
++enum calling_abi m68k_function_type_abi (const_tree);
++enum calling_abi m68k_cfun_abi (void);
+diff --git a/gcc/config/m68k/m68k.c b/gcc/config/m68k/m68k.c
+index e5bd0119a02..3d849b197da 100644
+--- a/gcc/config/m68k/m68k.c
++++ b/gcc/config/m68k/m68k.c
+@@ -35,6 +35,7 @@ along with GCC; see the file COPYING3.  If not see
+ #include "recog.h"
+ #include "diagnostic-core.h"
+ #include "expr.h"
++#include "toplev.h"
+ #include "reload.h"
+ #include "tm_p.h"
+ #include "target.h"
+@@ -132,6 +133,7 @@ static void m68k_sched_dfa_post_advance_cycle (void);
+ static int m68k_sched_first_cycle_multipass_dfa_lookahead (void);
+ 
+ static bool m68k_can_eliminate (const int, const int);
++static void m68k_set_current_function (tree);
+ static void m68k_conditional_register_usage (void);
+ static bool m68k_legitimate_address_p (enum machine_mode, rtx, bool);
+ static bool m68k_handle_option (size_t, const char *, int);
+@@ -145,6 +147,8 @@ static rtx m68k_struct_value_rtx (tree, int);
+ static tree m68k_handle_fndecl_attribute (tree *node, tree name,
+ 					  tree args, int flags,
+ 					  bool *no_add_attrs);
++static tree m68k_handle_type_attribute (tree *, tree, tree, int, bool *);
++static int m68k_comp_type_attributes (const_tree, const_tree);
+ static void m68k_compute_frame_layout (void);
+ static bool m68k_save_reg (unsigned int regno, bool interrupt_handler);
+ static bool m68k_ok_for_sibcall_p (tree, tree);
+@@ -158,10 +162,7 @@ static void m68k_output_dwarf_dtprel (FILE *, int, rtx) ATTRIBUTE_UNUSED;
+ static void m68k_trampoline_init (rtx, tree, rtx);
+ static int m68k_return_pops_args (tree, tree, int);
+ static rtx m68k_delegitimize_address (rtx);
+-static void m68k_function_arg_advance (CUMULATIVE_ARGS *, enum machine_mode,
+-				       const_tree, bool);
+-static rtx m68k_function_arg (CUMULATIVE_ARGS *, enum machine_mode,
+-			      const_tree, bool);
++static void m68k_maybe_switch_abi (void);
+ 
+ 
+ /* Specify the identification number of the library being built */
+@@ -282,6 +283,12 @@ const char *m68k_library_id_string = "_current_shared_library_a5_offset_";
+ #undef TARGET_CAN_ELIMINATE
+ #define TARGET_CAN_ELIMINATE m68k_can_eliminate
+ 
++#undef TARGET_SET_CURRENT_FUNCTION
++#define TARGET_SET_CURRENT_FUNCTION m68k_set_current_function
++
++#undef TARGET_EXPAND_TO_RTL_HOOK
++#define TARGET_EXPAND_TO_RTL_HOOK m68k_maybe_switch_abi
++
+ #undef TARGET_CONDITIONAL_REGISTER_USAGE
+ #define TARGET_CONDITIONAL_REGISTER_USAGE m68k_conditional_register_usage
+ 
+@@ -306,9 +313,21 @@ static const struct attribute_spec m68k_attribute_table[] =
+   { "interrupt", 0, 0, true,  false, false, m68k_handle_fndecl_attribute },
+   { "interrupt_handler", 0, 0, true,  false, false, m68k_handle_fndecl_attribute },
+   { "interrupt_thread", 0, 0, true,  false, false, m68k_handle_fndecl_attribute },
++
++ /* cdecl attribute specifies to pass arguments on the stack */
++  { "cdecl",             0, 0, false, true,  true,  m68k_handle_type_attribute },
++  /* Regparm attribute specifies how many integer arguments are to be
++     passed in registers.  */
++  { "regparm",           0, 1, false, true,  true,  m68k_handle_type_attribute },
++  /* Fastcall attribute says callee is responsible for popping arguments
++   if they are not variable.  */
++  { "fastcall",          0, 0, false, true,  true,  m68k_handle_type_attribute },
+   { NULL,                0, 0, false, false, false, NULL }
+ };
+ 
++#undef TARGET_COMP_TYPE_ATTRIBUTES
++#define TARGET_COMP_TYPE_ATTRIBUTES m68k_comp_type_attributes
++
+ struct gcc_target targetm = TARGET_INITIALIZER;
+ 
+ /* Base flags for 68k ISAs.  */
+@@ -442,6 +461,9 @@ unsigned int m68k_cpu_flags;
+ /* The set of FL_* flags that apply to the processor to be tuned for.  */
+ unsigned int m68k_tune_flags;
+ 
++/* The abi used by target.  */
++enum calling_abi m68k_abi;
++
+ /* Asm templates for calling or jumping to an arbitrary symbolic address,
+    or NULL if such calls or jumps are not supported.  The address is held
+    in operand 0.  */
+@@ -560,10 +582,27 @@ m68k_handle_option (size_t code, const char *arg, int value)
+     }
+ }
+ 
+-/* Implement TARGET_OPTION_OVERRIDE.  */
++/* Clear stack slot assignments remembered from previous functions.
++   This is called from INIT_EXPANDERS once before RTL is emitted for each
++   function.  */
++
++static struct machine_function *
++m68k_init_machine_status (void)
++{
++  struct machine_function *f;
++
++  f = ggc_alloc_cleared_machine_function ();
++  f->call_abi = m68k_abi;
++
++  return f;
++}
++
++/* Override various settings based on options.  If MAIN_ARGS_P, the
++   options are from the command line, otherwise they are from
++   attributes.  */
+ 
+ static void
+-m68k_option_override (void)
++m68k_option_override_internal (bool main_args_p)
+ {
+   const struct m68k_target_selection *entry;
+   unsigned long target_mask;
+@@ -599,7 +638,8 @@ m68k_option_override (void)
+     entry = all_devices + TARGET_CPU_DEFAULT;
+ 
+   m68k_cpu_flags = entry->flags;
+-
++  m68k_abi = TARGET_FASTCALL ? FASTCALL_ABI : STD_ABI;
++  
+   /* Use the architecture setting to derive default values for
+      certain flags.  */
+   target_mask = 0;
+@@ -758,8 +798,27 @@ m68k_option_override (void)
+       else
+ 	m68k_sched_mac = MAC_NO;
+     }
++
++  if (optimize >= 1 && !global_options_set.x_flag_omit_frame_pointer)
++    flag_omit_frame_pointer = optimize_size;
++
++  init_machine_status = m68k_init_machine_status;
++
++  /* Save the initial options in case the user does function specific options */
++  if (main_args_p)
++    target_option_default_node = target_option_current_node
++      = build_target_option_node ();
++}
++
++/* Implement the TARGET_OPTION_OVERRIDE hook.  */
++
++static void
++m68k_option_override (void)
++{
++  m68k_option_override_internal (true);
+ }
+ 
++
+ /* Implement TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE.  */
+ 
+ static void
+@@ -855,6 +914,280 @@ m68k_handle_fndecl_attribute (tree *node, tree name,
+   return NULL_TREE;
+ }
+ 
++/* Handle a "regparm" or "cdecl" attribute;
++   arguments as in struct attribute_spec.handler.  */
++
++static void
++m68k_validate_mutually_exclusive_attribute (const char *attr1, const char *attr2, tree *node, tree name ATTRIBUTE_UNUSED)
++{
++  if (lookup_attribute (attr2, TYPE_ATTRIBUTES(*node)))
++    error ("%s and %s attributes are mutually exclusive", attr1, attr2);
++}
++
++static tree
++m68k_handle_type_attribute (tree *node, tree name, tree args ATTRIBUTE_UNUSED,
++        		    int flags ATTRIBUTE_UNUSED, bool *no_add_attrs)
++{
++  if (TREE_CODE (*node) == FUNCTION_TYPE ||
++      TREE_CODE (*node) == METHOD_TYPE ||
++      TREE_CODE (*node) == FIELD_DECL ||
++      TREE_CODE (*node) == TYPE_DECL)
++    {
++      if (is_attribute_p ("cdecl", name))
++        {
++          m68k_validate_mutually_exclusive_attribute ("cdecl", "fastcall", node, name);
++          m68k_validate_mutually_exclusive_attribute ("cdecl", "regparm", node, name);
++        }
++      else if (is_attribute_p ("fastcall", name))
++        {
++          m68k_validate_mutually_exclusive_attribute ("fastcall", "cdecl", node, name);
++          m68k_validate_mutually_exclusive_attribute ("fastcall", "regparm", node, name);
++        }
++      else if (is_attribute_p ("regparm", name))
++        {
++          m68k_validate_mutually_exclusive_attribute ("regparm", "cdecl", node, name);
++          m68k_validate_mutually_exclusive_attribute ("regparm", "fastcall", node, name);
++        }
++    }
++  else
++    {
++      warning (OPT_Wattributes, "%qE attribute only applies to functions",
++               name);
++      *no_add_attrs = true;
++    }
++
++  return NULL_TREE;
++}
++
++/* Return zero if the attributes on TYPE1 and TYPE2 are incompatible,
++   one if they are compatible, and two if they are nearly compatible
++   (which causes a warning to be generated). */
++
++static int
++m68k_comp_exclusive_type_attributes(const char *name1, const char *name2, const_tree type1, const_tree type2)
++{
++	return (!! lookup_attribute (name1, TYPE_ATTRIBUTES (type1)) !=
++            !! lookup_attribute (name1, TYPE_ATTRIBUTES (type2))
++         || !! lookup_attribute (name2, TYPE_ATTRIBUTES (type1)) !=
++            !! lookup_attribute (name2, TYPE_ATTRIBUTES (type2)));
++}
++
++static int
++m68k_comp_type_attributes (const_tree type1, const_tree type2)
++{
++  /* Functions or methods are incompatible if they specify mutually
++     exclusive ways of passing arguments.  */
++  if (TREE_CODE (type1) == FUNCTION_TYPE || TREE_CODE (type1) == METHOD_TYPE)
++    {
++      tree arg1, arg2;
++      if (m68k_comp_exclusive_type_attributes ("cdecl", "regparm", type1, type2)
++	   || m68k_comp_exclusive_type_attributes ("cdecl", "fastcall", type1, type2)
++	   || m68k_comp_exclusive_type_attributes ("regparm", "fastcall", type1, type2))
++        return 0; /* 'regparm' and 'cdecl' are mutually exclusive.  */
++
++      arg1 = lookup_attribute ("regparm", TYPE_ATTRIBUTES (type1));
++      arg2 = lookup_attribute ("regparm", TYPE_ATTRIBUTES (type2));
++      if (arg1 && arg2)
++        {
++          int num1 = 0, num2 = 0;
++          if (TREE_VALUE (arg1) && TREE_CODE (TREE_VALUE (arg1)) == TREE_LIST)
++            {
++              tree numofregs = TREE_VALUE (TREE_VALUE (arg1));
++              if (numofregs)
++        	num1 = TREE_INT_CST_LOW (numofregs);
++            }
++          if (TREE_VALUE (arg2) && TREE_CODE (TREE_VALUE (arg2)) == TREE_LIST)
++            {
++              tree numofregs = TREE_VALUE (TREE_VALUE (arg2));
++              if (numofregs)
++        	num2 = TREE_INT_CST_LOW (numofregs);
++            }
++          if (num1 != num2)
++            return 0; /* Different numbers, or no number in one type.  */
++        }
++    }
++  return 1;
++}
++
++
++/* Implementation of call abi switching target hook. Specific to FNDECL
++   the specific call register sets are set.  See also
++   ix86_conditional_register_usage for more details.  */
++void
++m68k_call_abi_override (const_tree fndecl)
++{
++  if (fndecl == NULL_TREE)
++    cfun->machine->call_abi = m68k_abi;
++  else
++    cfun->machine->call_abi = m68k_function_type_abi (TREE_TYPE (fndecl));
++}
++
++static enum calling_abi
++m68k_function_abi (const_tree fndecl)
++{
++  if (! fndecl)
++    return m68k_abi;
++  return m68k_function_type_abi (TREE_TYPE (fndecl));
++}
++
++/* Returns value STD_ABI, FASTCALL_ABI dependent on cfun, specifying the
++   call abi used.  */
++enum calling_abi
++m68k_cfun_abi (void)
++{
++  if (! cfun)
++    return m68k_abi;
++  return cfun->machine->call_abi;
++}
++
++/* Returns value STD_ABI, FASTCALL_ABI dependent on fntype, specifying the
++   call abi used.  */
++enum calling_abi
++m68k_function_type_abi (const_tree fntype)
++{
++  if (fntype != NULL)
++    {
++      enum calling_abi abi = m68k_abi;
++      if (abi == STD_ABI)
++	{
++	  if (lookup_attribute ("fastcall", TYPE_ATTRIBUTES (fntype)))
++	    abi = FASTCALL_ABI;
++	}
++      else if (lookup_attribute ("cdecl", TYPE_ATTRIBUTES (fntype)))
++	abi = STD_ABI;
++      return abi;
++    }
++  return m68k_abi;
++}
++
++/* STD and FASTCALL ABI have different set of call used registers.  Avoid expensive
++   re-initialization of init_regs each time we switch function context since
++   this is needed only during RTL expansion.  */
++static void
++m68k_maybe_switch_abi (void)
++{
++  if ((call_used_regs[D2_REG] != 0) == (cfun->machine->call_abi == STD_ABI))
++    reinit_regs ();
++}
++
++/* Initialize a variable CUM of type CUMULATIVE_ARGS
++   for a call to a function whose data type is FNTYPE.
++   For a library call, FNTYPE is 0.  */
++
++void
++m68k_init_cumulative_args (CUMULATIVE_ARGS *cum,  /* Argument info to initialize */
++		      tree fntype,	/* tree ptr for function decl */
++		      rtx libname,	/* SYMBOL_REF of library name or 0 */
++		      tree fndecl,
++		      int caller ATTRIBUTE_UNUSED)
++{
++  cum->last_arg_reg = -1;
++  cum->last_arg_len = 0;
++  CLEAR_HARD_REG_SET(cum->regs_already_used);
++  
++  if (libname)
++    {
++      cum->call_abi = m68k_abi;
++    }
++  else if (fndecl)
++    {
++      cum->call_abi = m68k_function_abi (fndecl);
++    }
++  else
++    {
++      cum->call_abi = m68k_function_type_abi (fntype);
++    }
++
++#if ! defined (PCC_STATIC_STRUCT_RETURN) && defined (M68K_STRUCT_VALUE_REGNUM)
++  /* If return value is a structure, and we pass the buffer address in a
++     register, we can't use this register for our own purposes.
++     FIXME: Something similar would be useful for static chain.  */
++  if (fntype && aggregate_value_p (TREE_TYPE (fntype), fntype))
++    SET_HARD_REG_BIT(cum->regs_already_used, M68K_STRUCT_VALUE_REGNUM);
++#endif
++}
++
++/* Define where to put the arguments to a function.
++   Value is zero to push the argument on the stack,
++   or a hard register in which to store the argument.
++
++   MODE is the argument's machine mode.
++   TYPE is the data type of the argument (as a tree).
++    This is null for libcalls where that information may
++    not be available.
++   CUM is a variable of type CUMULATIVE_ARGS which gives info about
++    the preceding args and about the function being called.  */
++
++rtx m68k_function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode,
++                              const_tree type, bool named)
++{
++  if (cum->call_abi == FASTCALL_ABI)
++    {
++      int regbegin = -1, regend, len;
++      
++      /* FIXME: The last condition below is a workaround for a bug.  */
++      if (!TARGET_68881 && FLOAT_MODE_P (mode) && GET_MODE_UNIT_SIZE (mode) <= 4 &&
++          (GET_MODE_CLASS (mode) != MODE_COMPLEX_FLOAT || mode == SCmode))
++        {
++            regbegin = D0_REG; /* Dx */
++            regend = regbegin + M68K_FASTCALL_DATA_PARM;
++            len = (GET_MODE_SIZE (mode) + (UNITS_PER_WORD - 1)) / UNITS_PER_WORD;
++        }
++      else if (TARGET_68881 && FLOAT_MODE_P (mode) &&
++          GET_MODE_UNIT_SIZE (mode) <= 12 &&
++          (GET_MODE_CLASS (mode) != MODE_COMPLEX_FLOAT || mode == SCmode))
++        {
++          regbegin = FP0_REG; /* FPx */
++          regend = regbegin + M68K_FASTCALL_DATA_PARM;
++          len = GET_MODE_NUNITS (mode);
++        }
++      /* FIXME: Two last conditions below are workarounds for bugs.  */
++      else if (INTEGRAL_MODE_P (mode) && mode != CQImode && mode != CHImode)
++        {
++          len = (GET_MODE_SIZE (mode) + (UNITS_PER_WORD - 1)) / UNITS_PER_WORD;
++          if (len == 1)
++            {
++              if (type && POINTER_TYPE_P (type))  /* THIS */
++                {
++                  regbegin = A0_REG; /* Ax */
++                  regend = regbegin + M68K_FASTCALL_ADDR_PARM;
++                }
++              else
++                {
++                  regbegin = D0_REG; /* Dx */
++                  regend = regbegin + M68K_FASTCALL_DATA_PARM;
++                }
++            }
++        }
++
++      if (regbegin != -1)
++        {
++          int reg;
++          for (reg = regbegin; reg < regend; reg++)
++            {
++              if (!TEST_HARD_REG_BIT(cum->regs_already_used, reg) &&
++                  (reg + len <= regend))
++                {
++                  cum->last_arg_reg = reg;
++                  cum->last_arg_len = len;
++                  break;
++                }
++             }
++         }
++        
++      if (!named)
++        SET_HARD_REG_SET(cum->regs_already_used);
++
++      if (cum->last_arg_reg != -1)
++        {
++          return gen_rtx_REG (mode, cum->last_arg_reg);
++        }
++    }
++  return NULL_RTX;
++}
++
++
++
+ static void
+ m68k_compute_frame_layout (void)
+ {
+@@ -1464,12 +1797,27 @@ static bool
+ m68k_ok_for_sibcall_p (tree decl, tree exp)
+ {
+   enum m68k_function_kind kind;
++  tree type, decl_or_type;
+   
+   /* We cannot use sibcalls for nested functions because we use the
+      static chain register for indirect calls.  */
+   if (CALL_EXPR_STATIC_CHAIN (exp))
+     return false;
+ 
++  if (decl)
++    {
++      decl_or_type = decl;
++      type = TREE_TYPE (decl);
++    }
++  else
++    {
++      /* We're looking at the CALL_EXPR, we need the type of the function.  */
++      type = CALL_EXPR_FN (exp);		/* pointer expression */
++      type = TREE_TYPE (type);			/* pointer type */
++      type = TREE_TYPE (type);			/* function type */
++      decl_or_type = type;
++    }
++
+   if (!VOID_TYPE_P (TREE_TYPE (DECL_RESULT (cfun->decl))))
+     {
+       /* Check that the return value locations are the same.  For
+@@ -1490,6 +1838,18 @@ m68k_ok_for_sibcall_p (tree decl, tree exp)
+ 	return false;
+     }
+ 
++  /* The FASTCALL ABI has more call-clobbered registers;
++      disallow sibcalls from FASTCALL to STD.  */
++  if (cfun->machine->call_abi == FASTCALL_ABI
++      && m68k_function_type_abi (type) == STD_ABI)
++      return false;
++
++  /* FIXME: currently does not work at all for FASTCALL, because the
++     A2 register for the call will be restored in the epilogue
++     befor being used */
++  if (cfun->machine->call_abi == FASTCALL_ABI)
++      return false;
++
+   kind = m68k_get_function_kind (current_function_decl);
+   if (kind == m68k_fk_normal_function)
+     /* We can always sibcall from a normal function, because it's
+@@ -1504,24 +1864,19 @@ m68k_ok_for_sibcall_p (tree decl, tree exp)
+   return false;
+ }
+ 
+-/* On the m68k all args are always pushed.  */
+-
+-static rtx
+-m68k_function_arg (CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED,
+-		   enum machine_mode mode ATTRIBUTE_UNUSED,
+-		   const_tree type ATTRIBUTE_UNUSED,
+-		   bool named ATTRIBUTE_UNUSED)
+-{
+-  return NULL_RTX;
+-}
+-
+-static void
+-m68k_function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode,
+-			   const_tree type, bool named ATTRIBUTE_UNUSED)
++void
++m68k_function_arg_advance (CUMULATIVE_ARGS *cum,
++    enum machine_mode mode ATTRIBUTE_UNUSED,
++    const_tree type ATTRIBUTE_UNUSED,
++    bool named ATTRIBUTE_UNUSED)
+ {
+-  *cum += (mode != BLKmode
+-	   ? (GET_MODE_SIZE (mode) + 3) & ~3
+-	   : (int_size_in_bytes (type) + 3) & ~3);
++    if (cum->last_arg_reg != -1)
++      {
++	int count;
++	for (count = 0; count < cum->last_arg_len; count++)
++	    SET_HARD_REG_BIT(cum->regs_already_used, cum->last_arg_reg + count);
++	cum->last_arg_reg = -1;
++      }
+ }
+ 
+ /* Convert X to a legitimate function call memory reference and return the
+@@ -5095,7 +5450,7 @@ output_call (rtx x)
+   if (symbolic_operand (x, VOIDmode))
+     return m68k_symbolic_call;
+   else
+-    return "jsr %a0";
++    return "jsr %a0"; /* note: will be replaced by STATIC_CHAIN_REGNUM in m68k_legitimize_sibcall_address */
+ }
+ 
+ /* Likewise sibling calls.  */
+@@ -5106,7 +5461,7 @@ output_sibcall (rtx x)
+   if (symbolic_operand (x, VOIDmode))
+     return m68k_symbolic_jump;
+   else
+-    return "jmp %a0";
++    return "jmp %a0"; /* note: will be replaced by STATIC_CHAIN_REGNUM in m68k_legitimize_sibcall_address */
+ }
+ 
+ static void
+@@ -5344,11 +5699,22 @@ m68k_libcall_value (enum machine_mode mode)
+    NOTE: Due to differences in ABIs, don't call this function directly,
+    use FUNCTION_VALUE instead.  */
+ rtx
+-m68k_function_value (const_tree valtype, const_tree func ATTRIBUTE_UNUSED)
++m68k_function_value (const_tree valtype, const_tree fntype_or_decl, bool regs)
+ {
+-  enum machine_mode mode;
++  enum machine_mode mode = TYPE_MODE (valtype);
++  const_tree fn, fntype;
++  bool func_fastcall;
++  
++  fn = NULL_TREE;
++  if (fntype_or_decl && DECL_P (fntype_or_decl))
++    fn = fntype_or_decl;
++  fntype = fn ? TREE_TYPE (fn) : fntype_or_decl;
++
++  func_fastcall = m68k_function_type_abi(fntype) == FASTCALL_ABI;
++
++  if (! regs && !func_fastcall)
++    return gen_rtx_REG (mode, D0_REG);
+ 
+-  mode = TYPE_MODE (valtype);
+   switch (mode) {
+   case SFmode:
+   case DFmode:
+@@ -5361,7 +5727,7 @@ m68k_function_value (const_tree valtype, const_tree func ATTRIBUTE_UNUSED)
+   }
+ 
+   /* If the function returns a pointer, push that into %a0.  */
+-  if (func && POINTER_TYPE_P (TREE_TYPE (TREE_TYPE (func))))
++  if (regs && fntype && POINTER_TYPE_P (TREE_TYPE (fntype)) && !func_fastcall)
+     /* For compatibility with the large body of existing code which
+        does not always properly declare external functions returning
+        pointer types, the m68k/SVR4 convention is to copy the value
+@@ -6591,6 +6957,66 @@ m68k_return_pops_args (tree fundecl, tree funtype, int size)
+ 	  ? size : 0);
+ }
+ 
++/* Remember the last target of m68k_set_current_function.  */
++static GTY(()) tree m68k_previous_fndecl;
++
++/* Establish appropriate back-end context for processing the function
++   FNDECL.  The argument might be NULL to indicate processing at top
++   level, outside of any function scope.  */
++static void
++m68k_set_current_function (tree fndecl)
++{
++  /* Only change the context if the function changes.  This hook is called
++     several times in the course of compiling a function, and we don't want to
++     slow things down too much or call target_reinit when it isn't safe.  */
++  if (fndecl && fndecl != m68k_previous_fndecl)
++    {
++      tree old_tree = (m68k_previous_fndecl
++		       ? DECL_FUNCTION_SPECIFIC_TARGET (m68k_previous_fndecl)
++		       : NULL_TREE);
++
++      tree new_tree = (fndecl
++		       ? DECL_FUNCTION_SPECIFIC_TARGET (fndecl)
++		       : NULL_TREE);
++
++      m68k_previous_fndecl = fndecl;
++      if (old_tree == new_tree)
++	;
++
++      else if (new_tree)
++	{
++	  cl_target_option_restore (&global_options,
++				    TREE_TARGET_OPTION (new_tree));
++	  target_reinit ();
++	}
++
++      else if (old_tree)
++	{
++	  struct cl_target_option *def
++	    = TREE_TARGET_OPTION (target_option_current_node);
++
++	  cl_target_option_restore (&global_options, def);
++	  target_reinit ();
++	}
++    }
++}
++
++void
++m68k_order_regs_for_local_alloc (void)
++{
++  int i;
++  int pos = 0;
++  for (i = 0; i < 16; i ++)
++    if (call_used_regs [i] && !fixed_regs[i])
++      reg_alloc_order[pos++] = i;
++  for (i = 0; i < 16; i ++)
++    if (!(call_used_regs [i] && !fixed_regs[i]))
++      reg_alloc_order[pos++] = i;
++  reg_alloc_order[pos++] = 24;
++  for (i = 16; i < 24; i++)
++    reg_alloc_order[pos++] = i;
++}
++
+ /* Make sure everything's fine if we *don't* have a given processor.
+    This assumes that putting a register in fixed_regs will keep the
+    compiler's mitts completely off it.  We don't bother to zero it out
+@@ -6601,6 +7027,22 @@ m68k_conditional_register_usage (void)
+ {
+   int i;
+   HARD_REG_SET x;
++  
++  int num_of_dregs = m68k_cfun_abi() == FASTCALL_ABI ? M68K_FASTCALL_USED_DATA_REGS : M68K_STD_USED_REGS;
++  int num_of_aregs = m68k_cfun_abi() == FASTCALL_ABI ? M68K_FASTCALL_USED_ADDR_REGS : M68K_STD_USED_REGS;
++  for (i = 0; i < 8; i++)
++    {
++      call_used_regs[i] = (i < num_of_dregs) | fixed_regs[i];
++      call_used_regs[i + 8] = (i < num_of_aregs) | fixed_regs[i + 8];
++      call_used_regs[i + 16] = (i < num_of_dregs) | fixed_regs[i + 16];
++    }
++  if (flag_pic)
++    fixed_regs[PIC_REG] = 1;
++  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
++    {
++       call_used_regs[i] |= fixed_regs[i];
++       call_really_used_regs[i] = call_used_regs[i];
++    }
+   if (!TARGET_HARD_FLOAT)
+     {
+       COPY_HARD_REG_SET (x, reg_class_contents[(int)FP_REGS]);
+@@ -6608,8 +7050,6 @@ m68k_conditional_register_usage (void)
+         if (TEST_HARD_REG_BIT (x, i))
+ 	  fixed_regs[i] = call_used_regs[i] = 1;
+     }
+-  if (flag_pic)
+-    fixed_regs[PIC_REG] = call_used_regs[PIC_REG] = 1;
+ }
+ 
+ #include "gt-m68k.h"
+diff --git a/gcc/config/m68k/m68k.h b/gcc/config/m68k/m68k.h
+index 71b7c4f273f..877e3335583 100644
+--- a/gcc/config/m68k/m68k.h
++++ b/gcc/config/m68k/m68k.h
+@@ -30,6 +30,19 @@ along with GCC; see the file COPYING3.  If not see
+ # define TARGET_VERSION fprintf (stderr, " (68k, MIT syntax)")
+ #endif
+ 
++/* Available call abi.  */
++enum calling_abi
++{
++  STD_ABI = 0,
++  FASTCALL_ABI = 1
++};
++
++/* The abi used by target.  */
++extern enum calling_abi m68k_abi;
++
++/* The default abi used by target.  */
++#define DEFAULT_ABI STD_ABI
++
+ /* Handle --with-cpu default option from configure script.  */
+ #define OPTION_DEFAULT_SPECS						\
+   { "cpu",   "%{!mc68000:%{!m68000:%{!m68302:%{!m68010:%{!mc68020:%{!m68020:\
+@@ -138,8 +151,16 @@ along with GCC; see the file COPYING3.  If not see
+ 	}								\
+ 									\
+       if (TARGET_68881)							\
+-	builtin_define ("__HAVE_68881__");				\
++	{								\
++	  builtin_define ("__HAVE_68881__");				\
++	  builtin_define ("__M68881__"); /* Non-standard */		\
++	}								\
+ 									\
++      if (TARGET_FASTCALL)                                              \
++        {                                                               \
++      	  builtin_define ("__FASTCALL__"); /* Non-standard */		\
++        }                                                               \
++                                                                        \
+       if (TARGET_COLDFIRE)						\
+ 	{								\
+ 	  const char *tmp;						\
+@@ -304,7 +325,7 @@ along with GCC; see the file COPYING3.  If not see
+ 
+ #define UNITS_PER_WORD 4
+ 
+-#define PARM_BOUNDARY (TARGET_SHORT ? 16 : 32)
++#define PARM_BOUNDARY ((TARGET_SHORT || (TARGET_FASTCALL && TUNE_68000_10)) ? 16 : 32)
+ #define STACK_BOUNDARY 16
+ #define FUNCTION_BOUNDARY 16
+ #define EMPTY_FIELD_BOUNDARY 16
+@@ -440,7 +461,7 @@ along with GCC; see the file COPYING3.  If not see
+  */
+ #define ARG_POINTER_REGNUM 24
+ 
+-#define STATIC_CHAIN_REGNUM A0_REG
++#define STATIC_CHAIN_REGNUM (TARGET_FASTCALL ? A2_REG : A0_REG)
+ #define M68K_STATIC_CHAIN_REG_NAME REGISTER_PREFIX "a0"
+ 
+ /* Register in which address to store a structure value
+@@ -489,7 +510,7 @@ extern enum reg_class regno_reg_class[];
+ /* On the m68k, this is the size of MODE in words,
+    except in the FP regs, where a single reg is always enough.  */
+ #define CLASS_MAX_NREGS(CLASS, MODE)	\
+- ((CLASS) == FP_REGS ? 1 \
++ ((CLASS) == FP_REGS ? GET_MODE_NUNITS (MODE) \
+   : ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD))
+ 
+ /* Moves between fp regs and other regs are two insns.  */
+@@ -514,30 +535,77 @@ extern enum reg_class regno_reg_class[];
+ #define FIRST_PARM_OFFSET(FNDECL) 8
+ 
+ /* On the m68k the return value defaults to D0.  */
++#undef FUNCTION_VALUE
+ #define FUNCTION_VALUE(VALTYPE, FUNC)  \
+-  gen_rtx_REG (TYPE_MODE (VALTYPE), D0_REG)
++  m68k_function_value (VALTYPE, FUNC, false)
+ 
+ /* On the m68k the return value defaults to D0.  */
+-#define LIBCALL_VALUE(MODE)  gen_rtx_REG (MODE, D0_REG)
++#define LIBCALL_VALUE(MODE)  m68k_libcall_value (MODE)
+ 
+ /* On the m68k, D0 is usually the only register used.  */
+-#define FUNCTION_VALUE_REGNO_P(N) ((N) == D0_REG)
++#define FUNCTION_VALUE_REGNO_P(N) ((N) == D0_REG || (N) == A0_REG || (TARGET_68881 && (N) == FP0_REG))
+ 
+ /* Define this to be true when FUNCTION_VALUE_REGNO_P is true for
+    more than one register.
+    XXX This macro is m68k specific and used only for m68kemb.h.  */
+-#define NEEDS_UNTYPED_CALL 0
++#define NEEDS_UNTYPED_CALL 1
+ 
+ /* On the m68k, all arguments are usually pushed on the stack.  */
+-#define FUNCTION_ARG_REGNO_P(N) 0
++/* 1 if N is a possible register number for function argument passing.  */
++#define FUNCTION_ARG_REGNO_P(N)			\
++  ((((int)N) >= 0 && (N) < M68K_FASTCALL_DATA_PARM)		\
++   || ((N) >= 8 && (N) < 8 + M68K_FASTCALL_ADDR_PARM)	\
++   || (TARGET_68881 && (N) >= 16 && (N) < 16 + M68K_FASTCALL_DATA_PARM))
+ 
+-/* On the m68k, this is a single integer, which is a number of bytes
+-   of arguments scanned so far.  */
+-#define CUMULATIVE_ARGS int
++   
++/* The number of data/float registers and address registers to use for
++   fast calls. */
++#define M68K_FASTCALL_DATA_PARM 3
++#define M68K_FASTCALL_ADDR_PARM 2
++
++/* Call clobbered regs. */
++#define M68K_STD_USED_REGS 2
++#define M68K_FASTCALL_USED_DATA_REGS 2
++#define M68K_FASTCALL_USED_ADDR_REGS 2
++
++/* On the m68k, this is a structure:
++   regs_already_used: bitmask of the already used registers.
++   last_arg_reg - register number of the most recently passed argument.
++     -1 if passed on stack.
++   last_arg_len - number of registers used by the most recently passed
++     argument.
++*/
++
++struct m68k_args
++{
++  unsigned long /* HARD_REG_SET */ regs_already_used;
++  int last_arg_reg;
++  int last_arg_len;
++  enum calling_abi call_abi;
++};
+ 
+-/* On the m68k, the offset starts at 0.  */
+-#define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
+- ((CUM) = 0)
++#define CUMULATIVE_ARGS struct m68k_args
++
++/* The default number of data, address and float registers to use when
++   user specified '-mregparm' switch, not '-mregparm=<value>' option.  */
++
++#define ADJUST_REG_ALLOC_ORDER m68k_order_regs_for_local_alloc ()
++
++#define OVERRIDE_ABI_FORMAT(FNDECL) m68k_call_abi_override (FNDECL)
++
++#define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS) \
++  m68k_init_cumulative_args (&(CUM), (FNTYPE), (LIBNAME), (FNDECL), (N_NAMED_ARGS) != -1)
++
++#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED)	\
++  (m68k_function_arg_advance (&(CUM), MODE, TYPE, NAMED))
++
++/* On m68k all args are pushed, except if -mfastcall then d0-2, a0-1 and
++   fp0-2 are used for passing the first arguments.
++   Note: by default, the static-chain is passed in a0. Targets that want
++   to make full use of '-mfastcall' are advised to pass the static-chain
++   somewhere else.  */
++#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
++  (m68k_function_arg (&(CUM), (MODE), (TYPE), (NAMED)))
+ 
+ #define FUNCTION_PROFILER(FILE, LABELNO)  \
+   asm_fprintf (FILE, "\tlea %LLP%d,%Ra0\n\tjsr mcount\n", (LABELNO))
+@@ -1032,3 +1100,11 @@ extern int m68k_sched_address_bypass_p (rtx, rtx);
+ extern int m68k_sched_indexed_address_bypass_p (rtx, rtx);
+ 
+ #define CPU_UNITS_QUERY 1
++
++#ifndef USED_FOR_TARGET
++struct GTY(()) machine_function {
++  /* This value is used for amd64 targets and specifies the current abi
++     to be used. STD_ABI means cdecl abi. Otherwise FASTCALL_ABI means fastcall abi.  */
++  ENUM_BITFIELD(calling_abi) call_abi : 8;
++};
++#endif
+diff --git a/gcc/config/m68k/m68k.md b/gcc/config/m68k/m68k.md
+index f89037f2e96..3118c1d01a1 100644
+--- a/gcc/config/m68k/m68k.md
++++ b/gcc/config/m68k/m68k.md
+@@ -129,8 +129,11 @@
+ ;; Registers by name.
+ (define_constants
+   [(D0_REG		0)
++   (D1_REG		1)
++   (D2_REG		2)
+    (A0_REG		8)
+    (A1_REG		9)
++   (A2_REG		10)
+    (PIC_REG		13)
+    (A6_REG		14)
+    (SP_REG		15)
+@@ -1070,7 +1073,10 @@
+ (define_insn ""
+   [(set (match_operand:QI 0 "nonimmediate_operand" "=d,*a,m")
+ 	(match_operand:QI 1 "general_src_operand" "dmSi*a,di*a,dmSi"))]
+-  "!TARGET_COLDFIRE"
++  "!TARGET_COLDFIRE
++   && (!MEM_P (operands[0])
++       || GET_CODE (XEXP (operands[0], 0)) != PRE_DEC
++       || XEXP (XEXP (operands[0], 0), 0) != stack_pointer_rtx)"
+   "* return output_move_qimode (operands);")
+ 
+ (define_insn ""
+diff --git a/gcc/config/m68k/m68k.opt b/gcc/config/m68k/m68k.opt
+index d5aa9fa7698..c04afa3c9a7 100644
+--- a/gcc/config/m68k/m68k.opt
++++ b/gcc/config/m68k/m68k.opt
+@@ -147,6 +147,10 @@ mnoshort
+ Target RejectNegative InverseMask(SHORT)
+ Consider type 'int' to be 32 bits wide
+ 
++mnofastcall
++Target RejectNegative InverseMask(FASTCALL)
++Use standard calling conventions. 
++
+ mpcrel
+ Target Report Mask(PCREL)
+ Generate pc-relative code
+@@ -167,6 +171,10 @@ mshort
+ Target Report Mask(SHORT)
+ Consider type 'int' to be 16 bits wide
+ 
++mfastcall
++Target Report Mask(FASTCALL)
++Use calling convention passing arguments in registers.
++
+ msoft-float
+ Target RejectNegative InverseMask(HARD_FLOAT)
+ Generate code with library calls for floating point
+diff --git a/gcc/config/m68k/m68kelf.h b/gcc/config/m68k/m68kelf.h
+index d3fc41a4e49..9c76eeb57db 100644
+--- a/gcc/config/m68k/m68kelf.h
++++ b/gcc/config/m68k/m68kelf.h
+@@ -86,7 +86,7 @@ do {								\
+    structure return, so have to use a1 for the static chain.  */
+ 
+ #undef STATIC_CHAIN_REGNUM
+-#define STATIC_CHAIN_REGNUM A1_REG
++#define STATIC_CHAIN_REGNUM (TARGET_FASTCALL ? A2_REG : A1_REG)
+ #undef M68K_STATIC_CHAIN_REG_NAME
+ #define M68K_STATIC_CHAIN_REG_NAME REGISTER_PREFIX "a1"
+ 
+diff --git a/gcc/config/m68k/math-68881.h b/gcc/config/m68k/math-68881.h
+index 6d9f8b2d4a1..9fad2950508 100644
+--- a/gcc/config/m68k/math-68881.h
++++ b/gcc/config/m68k/math-68881.h
+@@ -44,6 +44,16 @@
+ 
+ #include <errno.h>
+ 
++/* GCC 4.3 and above with -std=c99 or -std=gnu99 implements ISO C99
++   inline semantics, unless -fgnu89-inline is used.  */
++#ifdef __cplusplus
++# define __MATH_68881_INLINE inline
++#elif defined __GNUC_STDC_INLINE__
++# define __MATH_68881_INLINE extern __inline __attribute__ ((__gnu_inline__))
++#else
++# define __MATH_68881_INLINE extern __inline
++#endif
++
+ #undef HUGE_VAL
+ #ifdef __sun__
+ /* The Sun assembler fails to handle the hex constant in the usual defn.  */
+@@ -64,7 +74,7 @@
+ })
+ #endif
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ sin (double x)
+ {
+   double value;
+@@ -75,7 +85,7 @@ sin (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ cos (double x)
+ {
+   double value;
+@@ -86,7 +96,7 @@ cos (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ tan (double x)
+ {
+   double value;
+@@ -97,7 +107,7 @@ tan (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ asin (double x)
+ {
+   double value;
+@@ -108,7 +118,7 @@ asin (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ acos (double x)
+ {
+   double value;
+@@ -119,7 +129,7 @@ acos (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ atan (double x)
+ {
+   double value;
+@@ -130,7 +140,7 @@ atan (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ atan2 (double y, double x)
+ {
+   double pi, pi_over_2;
+@@ -187,7 +197,7 @@ atan2 (double y, double x)
+     }
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ sinh (double x)
+ {
+   double value;
+@@ -198,7 +208,7 @@ sinh (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ cosh (double x)
+ {
+   double value;
+@@ -209,7 +219,7 @@ cosh (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ tanh (double x)
+ {
+   double value;
+@@ -220,7 +230,7 @@ tanh (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ atanh (double x)
+ {
+   double value;
+@@ -231,7 +241,7 @@ atanh (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ exp (double x)
+ {
+   double value;
+@@ -242,7 +252,7 @@ exp (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ expm1 (double x)
+ {
+   double value;
+@@ -253,7 +263,7 @@ expm1 (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ log (double x)
+ {
+   double value;
+@@ -264,7 +274,7 @@ log (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ log1p (double x)
+ {
+   double value;
+@@ -275,7 +285,7 @@ log1p (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ log10 (double x)
+ {
+   double value;
+@@ -286,7 +296,7 @@ log10 (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ sqrt (double x)
+ {
+   double value;
+@@ -297,13 +307,13 @@ sqrt (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ hypot (double x, double y)
+ {
+   return sqrt (x*x + y*y);
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ pow (double x, double y)
+ {
+   if (x > 0)
+@@ -352,7 +362,7 @@ pow (double x, double y)
+     }
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ fabs (double x)
+ {
+   double value;
+@@ -363,7 +373,7 @@ fabs (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ ceil (double x)
+ {
+   int rounding_mode, round_up;
+@@ -385,7 +395,7 @@ ceil (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ floor (double x)
+ {
+   int rounding_mode, round_down;
+@@ -408,7 +418,7 @@ floor (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ rint (double x)
+ {
+   int rounding_mode, round_nearest;
+@@ -430,7 +440,7 @@ rint (double x)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ fmod (double x, double y)
+ {
+   double value;
+@@ -442,7 +452,7 @@ fmod (double x, double y)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ drem (double x, double y)
+ {
+   double value;
+@@ -454,19 +464,20 @@ drem (double x, double y)
+   return value;
+ }
+ 
+-__inline extern double
+-scalb (double x, int n)
++__MATH_68881_INLINE double
++scalb (double x, double n)
+ {
+   double value;
++  int exp = (int)(n);
+ 
+   __asm ("fscale%.l %2,%0"
+ 	 : "=f" (value)
+ 	 : "0" (x),
+-	   "dmi" (n));
++	   "dmi" (exp));
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ logb (double x)
+ {
+   double exponent;
+@@ -477,7 +488,7 @@ logb (double x)
+   return exponent;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ ldexp (double x, int n)
+ {
+   double value;
+@@ -489,7 +500,7 @@ ldexp (double x, int n)
+   return value;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ frexp (double x, int *exp)
+ {
+   double float_exponent;
+@@ -514,7 +525,7 @@ frexp (double x, int *exp)
+   return mantissa;
+ }
+ 
+-__inline extern double
++__MATH_68881_INLINE double
+ modf (double x, double *ip)
+ {
+   double temp;
+diff --git a/gcc/config/m68k/mint.h b/gcc/config/m68k/mint.h
+new file mode 100644
+index 00000000000..6d9844ba645
+--- /dev/null
++++ b/gcc/config/m68k/mint.h
+@@ -0,0 +1,177 @@
++/* Definitions of target machine for GNU compiler.
++   Atari ST TOS/MiNT.
++   Copyright (C) 1994, 1995, 2007, 2008, 2009, 2010, 2011
++   Free Software Foundation, Inc.
++
++This file is part of GCC.
++
++GCC is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 3, or (at your option)
++any later version.
++
++GCC is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with GCC; see the file COPYING3.  If not see
++<http://www.gnu.org/licenses/>.  */
++
++/* Here are four prefixes that are used by asm_fprintf to
++   facilitate customization for alternate assembler syntaxes.
++   Machines with no likelihood of an alternate syntax need not
++   define these and need not use asm_fprintf.  */
++
++/* The prefix for register names.  Note that REGISTER_NAMES
++   is supposed to include this prefix. Also note that this is NOT an
++   fprintf format string, it is a literal string */
++
++#undef REGISTER_PREFIX
++#define REGISTER_PREFIX "%"
++
++/* The prefix for local (compiler generated) labels.
++   These labels will not appear in the symbol table.  */
++
++#undef LOCAL_LABEL_PREFIX
++#define LOCAL_LABEL_PREFIX "."
++
++#undef ASM_COMMENT_START
++#define ASM_COMMENT_START "|"
++
++#undef WCHAR_TYPE
++#define WCHAR_TYPE "short unsigned int"
++
++#undef WCHAR_TYPE_SIZE
++#define WCHAR_TYPE_SIZE SHORT_TYPE_SIZE
++
++#undef TARGET_OS_CPP_BUILTINS
++#define TARGET_OS_CPP_BUILTINS()		\
++  do						\
++    {						\
++      builtin_define ("__MINT__");		\
++      builtin_define_std ("atarist");		\
++      builtin_assert ("machine=atari");		\
++      builtin_assert ("system=mint");		\
++    }						\
++  while (0)
++
++/* The following defines are nonstandard
++   and are kept only for compatibility
++   with older versions of GCC for MiNT.  */
++
++#undef CPP_SPEC
++#define CPP_SPEC			\
++  "%{m68000:-D__M68000__} "		\
++  "%{mc68020:-D__M68020__} "		\
++  "%{m68020:-D__M68020__} "		\
++  "%{m68030:-D__M68020__} "		\
++  "%{m68040:-D__M68020__} "		\
++  "%{m68060:-D__M68020__} "		\
++  "%{m68020-40:-D__M68020__} "		\
++  "%{m68020-60:-D__M68020__} "		\
++  "%{!m680*:%{!mc680*:-D__M68000__}} "	\
++  "%{mshort:-D__MSHORT__}"
++
++#define STARTFILE_SPEC	"%{pg|p|profile:gcrt0.o%s;:crt0.o%s}"
++#define LIB_SPEC	"-lc"
++#define LINKER_NAME	"collect2 %{v:-v}"
++
++/* Every structure or union's size must be a multiple of 2 bytes.  */
++#define STRUCTURE_SIZE_BOUNDARY 16
++
++/* The -g option generates stabs debug information.  */
++#define DBX_DEBUGGING_INFO 1
++
++/* This is the assembler directive to equate two values.  */
++#undef SET_ASM_OP
++#define SET_ASM_OP		"\t.set\t"
++
++/* This is how we tell the assembler that a symbol is weak.  */
++#undef ASM_WEAKEN_LABEL
++#define ASM_WEAKEN_LABEL(FILE,NAME) \
++  do { fputs ("\t.weak\t", FILE); assemble_name (FILE, NAME); \
++       fputc ('\n', FILE); } while (0)
++
++/* Don't default to pcc-struct-return, because gcc is the only compiler, and
++   we want to retain compatibility with older gcc versions.  */
++#define DEFAULT_PCC_STRUCT_RETURN 0
++
++/* The system headers are C++-aware.  */
++#define NO_IMPLICIT_EXTERN_C
++
++/* By default, the vtable entries are void pointers, the so the alignment
++   is the same as pointer alignment.  The value of this macro specifies
++   the alignment of the vtable entry in bits.  It should be defined only
++   when special alignment is necessary.
++
++   MiNT: The default value of 32 is too much and unsupported by a.out-mintprg.
++*/
++#define TARGET_VTABLE_ENTRY_ALIGN 16
++
++/* If we have a definition of INCOMING_RETURN_ADDR_RTX, assume that
++   the rest of the DWARF 2 frame unwind support is also provided.
++   
++   MiNT: DWARF 2 frame unwind is not supported by a.out-mint.
++*/
++#define DWARF2_UNWIND_INFO 0
++
++/* config/m68k.md has an explicit reference to the program counter,
++   prefix this by the register prefix.  */
++
++#define ASM_RETURN_CASE_JUMP				\
++  do {							\
++    if (TARGET_COLDFIRE)				\
++      {							\
++	if (ADDRESS_REG_P (operands[0]))		\
++	  return "jmp %%pc@(2,%0:l)";			\
++	else						\
++	  return "ext%.l %0\n\tjmp %%pc@(2,%0:l)";	\
++      }							\
++    else						\
++      return "jmp %%pc@(2,%0:w)";			\
++  } while (0)
++
++/* The ADDR_DIFF_VEC must exactly follow the previous instruction.  */
++
++#undef ADDR_VEC_ALIGN
++#define ADDR_VEC_ALIGN(ADDR_VEC) 0
++
++/* If defined, a C expression whose value is a string containing the
++   assembler operation to identify the following data as uninitialized global
++   data.  */
++
++#define BSS_SECTION_ASM_OP "\t.bss"
++
++/* A C statement (sans semicolon) to output to the stdio stream
++   FILE the assembler definition of uninitialized global DECL named
++   NAME whose size is SIZE bytes and alignment is ALIGN bytes.
++   Try to use asm_output_aligned_bss to implement this macro.  */
++
++#define ASM_OUTPUT_ALIGNED_BSS(FILE, DECL, NAME, SIZE, ALIGN) \
++  asm_output_aligned_bss (FILE, DECL, NAME, SIZE, ALIGN)
++
++/* Disable -fpic and -fPIC since bsr.l _label@PLTPC
++   is unsupported by the assembler.  */
++
++#undef  SUBTARGET_OVERRIDE_OPTIONS
++#define SUBTARGET_OVERRIDE_OPTIONS					\
++do {									\
++  if (flag_pic && !TARGET_PCREL)					\
++      error ("-f%s is not supported on this target",			\
++	       (flag_pic > 1) ? "PIC" : "pic");				\
++} while (0)
++
++
++/* Workaround for GCC bug #35067 about multiple thunks.  */
++
++#undef MAKE_DECL_ONE_ONLY
++#define MAKE_DECL_ONE_ONLY(DECL) (DECL_WEAK (DECL) = 1)
++
++/* Avoid requiring -static with -fmudflap like in config/bfin/uclinux.h */
++#define MFWRAP_SPEC " %{fmudflap|fmudflapth: \
++ --wrap=malloc --wrap=free --wrap=calloc --wrap=realloc\
++ --wrap=mmap --wrap=munmap --wrap=alloca\
++ %{fmudflapth: --wrap=pthread_create\
++}} %{fmudflap|fmudflapth: --wrap=main}"
+diff --git a/gcc/config/m68k/netbsd-elf.h b/gcc/config/m68k/netbsd-elf.h
+index 1238d26e766..356684d42fd 100644
+--- a/gcc/config/m68k/netbsd-elf.h
++++ b/gcc/config/m68k/netbsd-elf.h
+@@ -230,7 +230,7 @@ while (0)
+    regnum.  Make it a1 instead.  */
+ 
+ #undef STATIC_CHAIN_REGNUM
+-#define STATIC_CHAIN_REGNUM A1_REG
++#define STATIC_CHAIN_REGNUM (TARGET_FASTCALL ? A2_REG : A1_REG)
+ #undef M68K_STATIC_CHAIN_REG_NAME
+ #define M68K_STATIC_CHAIN_REG_NAME REGISTER_PREFIX "a1"
+ 
+@@ -270,7 +270,7 @@ while (0)
+ 
+ #undef FUNCTION_VALUE
+ #define FUNCTION_VALUE(VALTYPE, FUNC)					\
+-  m68k_function_value (VALTYPE, FUNC)
++  m68k_function_value (VALTYPE, FUNC, true)
+ 
+ 
+ /* Define how to find the value returned by a library function
+diff --git a/gcc/config/m68k/t-mint b/gcc/config/m68k/t-mint
+new file mode 100644
+index 00000000000..faac34970ba
+--- /dev/null
++++ b/gcc/config/m68k/t-mint
+@@ -0,0 +1,41 @@
++# 
++# Use multiple libraries
++# 
++
++MULTILIB_OPTIONS = m68020-60/mcpu=5475 mshort mfastcall
++
++MULTILIB_DIRNAMES = m68020-60 m5475 mshort mfastcall
++
++MULTILIB_MATCHES = \
++	m68020-60=m68881 \
++	m68020-60=m68020 \
++	m68020-60=m68020-40 \
++	m68020-60=mc68020 \
++	m68020-60=m68030 \
++	m68020-60=m68040 \
++	m68020-60=m68060 \
++	m68020-60=mcpu?68020 \
++	m68020-60=mcpu?68030 \
++	m68020-60=mcpu?68040 \
++	m68020-60=mcpu?68060 \
++	m68020-60=march?68020 \
++	m68020-60=march?68030 \
++	m68020-60=march?68040 \
++	m68020-60=march?68060 \
++	mcpu?5475=mcfv4e \
++	mcpu?5475=mcpu?5470 \
++	mcpu?5475=mcpu?5471 \
++	mcpu?5475=mcpu?5472 \
++	mcpu?5475=mcpu?5473 \
++	mcpu?5475=mcpu?5474 \
++	mcpu?5475=mcpu?547x \
++	mcpu?5475=mcpu?5480 \
++	mcpu?5475=mcpu?5481 \
++	mcpu?5475=mcpu?5482 \
++	mcpu?5475=mcpu?5483 \
++	mcpu?5475=mcpu?5484 \
++	mcpu?5475=mcpu?5485 \
++	mcpu?5475=mcpu?548x
++
++LIBGCC = stmp-multilib
++INSTALL_LIBGCC = install-multilib
+diff --git a/gcc/configure b/gcc/configure
+index c8caff252f4..ad548bb9545 100755
+--- a/gcc/configure
++++ b/gcc/configure
+@@ -12103,6 +12103,10 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   netbsd* | freebsd* | openbsd* | darwin* | dragonfly*)
+     # This has been around since 386BSD, at least.  Likely further.
+     if test -x /sbin/sysctl; then
+@@ -15451,6 +15455,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+@@ -17265,6 +17273,11 @@ else
+     lt_cv_dlopen_libs=
+     ;;
+ 
++  mint*)
++    lt_cv_dlopen="no"
++    lt_cv_dlopen_libs=
++    ;;
++
+   darwin*)
+   # if libdl is installed we need to link against it
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dlopen in -ldl" >&5
+diff --git a/gcc/cp/cfns.gperf b/gcc/cp/cfns.gperf
+index ef1ed083d32..83a0957dd08 100644
+--- a/gcc/cp/cfns.gperf
++++ b/gcc/cp/cfns.gperf
+@@ -18,6 +18,9 @@ along with GCC; see the file COPYING3.  If not see
+ <http://www.gnu.org/licenses/>.  */
+ #ifdef __GNUC__
+ __inline
++#ifdef __GNUC_STDC_INLINE__
++__attribute__ ((__gnu_inline__))
++#endif
+ #endif
+ static unsigned int hash (const char *, unsigned int);
+ #ifdef __GNUC__
+diff --git a/gcc/cp/cfns.h b/gcc/cp/cfns.h
+index 62cdfab93aa..2fb9b4632b9 100644
+--- a/gcc/cp/cfns.h
++++ b/gcc/cp/cfns.h
+@@ -53,6 +53,9 @@ __inline
+ static unsigned int hash (const char *, unsigned int);
+ #ifdef __GNUC__
+ __inline
++#ifdef __GNUC_STDC_INLINE__
++__attribute__ ((__gnu_inline__))
++#endif
+ #endif
+ const char * libc_name_p (const char *, unsigned int);
+ /* maximum key range = 391, duplicates = 0 */
+diff --git a/gcc/df-problems.c b/gcc/df-problems.c
+index c3901b8bd34..58a8c64c461 100644
+--- a/gcc/df-problems.c
++++ b/gcc/df-problems.c
+@@ -4037,7 +4037,10 @@ can_move_insns_across (rtx from, rtx to, rtx across_from, rtx across_to,
+ 	  if (bitmap_intersect_p (merge_set, test_use)
+ 	      || bitmap_intersect_p (merge_use, test_set))
+ 	    break;
+-	  max_to = insn;
++#ifdef HAVE_cc0
++	  if (!sets_cc0_p (insn))
++#endif
++	    max_to = insn;
+ 	}
+       next = NEXT_INSN (insn);
+       if (insn == to)
+@@ -4074,7 +4077,11 @@ can_move_insns_across (rtx from, rtx to, rtx across_from, rtx across_to,
+     {
+       if (NONDEBUG_INSN_P (insn))
+ 	{
+-	  if (!bitmap_intersect_p (test_set, local_merge_live))
++	  if (!bitmap_intersect_p (test_set, local_merge_live)
++#ifdef HAVE_cc0
++	      && !sets_cc0_p (insn)
++#endif
++	      )
+ 	    {
+ 	      max_to = insn;
+ 	      break;
+diff --git a/gcc/doc/gcc.texi b/gcc/doc/gcc.texi
+index 0e167bae004..39c93754e91 100644
+--- a/gcc/doc/gcc.texi
++++ b/gcc/doc/gcc.texi
+@@ -86,9 +86,15 @@ Published by:
+ @item GNU Press
+ @tab Website: www.gnupress.org
+ @item a division of the
+-@tab General: @tex press@@gnu.org @end tex
++@tab General:
++@tex
++press@@gnu.org
++@end tex
+ @item Free Software Foundation
+-@tab Orders:  @tex sales@@gnu.org @end tex
++@tab Orders:
++@tex
++sales@@gnu.org
++@end tex
+ @item 51 Franklin Street, Fifth Floor
+ @tab Tel 617-542-5942
+ @item Boston, MA 02110-1301 USA
+diff --git a/gcc/pretty-print.h b/gcc/pretty-print.h
+index 3b6d18e9254..d57d98678a2 100644
+--- a/gcc/pretty-print.h
++++ b/gcc/pretty-print.h
+@@ -305,7 +305,7 @@ extern void pp_base_append_text (pretty_printer *, const char *, const char *);
+ 
+ /* This header may be included before diagnostics-core.h, hence the duplicate
+    definitions to allow for GCC-specific formats.  */
+-#if GCC_VERSION >= 3005
++#if GCC_VERSION >= 3005 && 0
+ #define ATTRIBUTE_GCC_PPDIAG(m, n) __attribute__ ((__format__ (__gcc_diag__, m ,n))) ATTRIBUTE_NONNULL(m)
+ #else
+ #define ATTRIBUTE_GCC_PPDIAG(m, n) ATTRIBUTE_NONNULL(m)
+diff --git a/libdecnumber/decNumberLocal.h b/libdecnumber/decNumberLocal.h
+index dca79e51db7..24fb7f690d2 100644
+--- a/libdecnumber/decNumberLocal.h
++++ b/libdecnumber/decNumberLocal.h
+@@ -188,7 +188,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   #if (DECNUMMAXE != DEC_MAX_EMAX)
+     #error Maximum exponent mismatch
+   #endif
+-  #if (DECNUMMINE != DEC_MIN_EMIN)
++  #if !(DECNUMMINE == DEC_MIN_EMIN) /* gcc 2.95.3 has bug in '!=' operator for negative constants */
+     #error Minimum exponent mismatch
+   #endif
+ 
+diff --git a/libffi/configure b/libffi/configure
+index 6b38089d8c8..6b414a1c9df 100755
+--- a/libffi/configure
++++ b/libffi/configure
+@@ -5065,6 +5065,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -8690,6 +8696,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libgcc/config.host b/libgcc/config.host
+index 25e949e0fe3..622ccdf5f26 100644
+--- a/libgcc/config.host
++++ b/libgcc/config.host
+@@ -387,6 +387,8 @@ m68k-*-linux*)		# Motorola m68k's running GNU/Linux
+ 				# with ELF format using glibc 2
+ 				# aka the GNU/Linux C library 6.
+ 	;;
++m68k-*-mint*)
++	;;
+ m68k-*-rtems*)
+ 	;;
+ mcore-*-elf)
+diff --git a/libgfortran/configure b/libgfortran/configure
+index 1e61aeb4910..0e0844fbace 100755
+--- a/libgfortran/configure
++++ b/libgfortran/configure
+@@ -6649,6 +6649,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -10009,6 +10015,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libgo/configure b/libgo/configure
+index ca3544e5f2b..327881918b4 100644
+--- a/libgo/configure
++++ b/libgo/configure
+@@ -8822,6 +8822,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libgomp/configure b/libgomp/configure
+index 6f25c6f5eb9..cdaf3720209 100755
+--- a/libgomp/configure
++++ b/libgomp/configure
+@@ -5381,6 +5381,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -9006,6 +9012,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libiberty/configure b/libiberty/configure
+index bdabe8d1a35..1304e0a6106 100755
+--- a/libiberty/configure
++++ b/libiberty/configure
+@@ -4850,6 +4850,7 @@ esac
+ if [ "${shared}" = "yes" ]; then
+   case "${host}" in
+     *-*-cygwin*)	;;
++    *-*-mint*)		;;
+     alpha*-*-linux*)	PICFLAG=-fPIC ;;
+     arm*-*-*)		PICFLAG=-fPIC ;;
+     hppa*-*-*)		PICFLAG=-fPIC ;;
+diff --git a/libiberty/configure.ac b/libiberty/configure.ac
+index 9f1ff04938e..df4a9d75b2c 100644
+--- a/libiberty/configure.ac
++++ b/libiberty/configure.ac
+@@ -201,6 +201,7 @@ esac
+ if [[ "${shared}" = "yes" ]]; then
+   case "${host}" in
+     *-*-cygwin*)	;;
++    *-*-mint*)		;;
+     alpha*-*-linux*)	PICFLAG=-fPIC ;;
+     arm*-*-*)		PICFLAG=-fPIC ;;
+     hppa*-*-*)		PICFLAG=-fPIC ;;
+diff --git a/libiberty/hex.c b/libiberty/hex.c
+index 5eeafdbd158..696d914e776 100644
+--- a/libiberty/hex.c
++++ b/libiberty/hex.c
+@@ -24,7 +24,7 @@ Boston, MA 02110-1301, USA.  */
+ #include "libiberty.h"
+ #include "safe-ctype.h" /* for HOST_CHARSET_ASCII */
+ 
+-#if EOF != -1
++#if !(EOF == -1)	/* gcc 2.95.3 has bug in '!=' operator for negative constants */
+  #error "hex.c requires EOF == -1"
+ #endif
+ 
+diff --git a/libiberty/safe-ctype.c b/libiberty/safe-ctype.c
+index 0972b4b354f..7418139d325 100644
+--- a/libiberty/safe-ctype.c
++++ b/libiberty/safe-ctype.c
+@@ -119,7 +119,7 @@ sets of characters:
+ #include <safe-ctype.h>
+ #include <stdio.h>  /* for EOF */
+ 
+-#if EOF != -1
++#if !(EOF == -1)	/* gcc 2.95.3 has bug in '!=' operator for negative constants */
+  #error "<safe-ctype.h> requires EOF == -1"
+ #endif
+ 
+diff --git a/libjava/classpath/configure b/libjava/classpath/configure
+index a25f5f75a47..309fc328cdd 100755
+--- a/libjava/classpath/configure
++++ b/libjava/classpath/configure
+@@ -6376,6 +6376,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -9708,6 +9714,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libjava/configure b/libjava/configure
+index d660561801d..86ff1e7a7f6 100755
+--- a/libjava/configure
++++ b/libjava/configure
+@@ -7613,6 +7613,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -11243,6 +11249,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libjava/libltdl/configure b/libjava/libltdl/configure
+index 35b89dc5551..f10b8012781 100755
+--- a/libjava/libltdl/configure
++++ b/libjava/libltdl/configure
+@@ -5502,6 +5502,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+diff --git a/libmudflap/configure b/libmudflap/configure
+index 441299f6552..bf52b149c1c 100755
+--- a/libmudflap/configure
++++ b/libmudflap/configure
+@@ -5153,6 +5153,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -8507,6 +8513,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libmudflap/mf-hooks2.c b/libmudflap/mf-hooks2.c
+index 5649e1c5882..1eea4cd544d 100644
+--- a/libmudflap/mf-hooks2.c
++++ b/libmudflap/mf-hooks2.c
+@@ -1668,6 +1668,8 @@ WRAPPER2(int, system, const char *string)
+ }
+ 
+ 
++#ifdef HAVE_DLFCN_H
++
+ WRAPPER2(void *, dlopen, const char *path, int flags)
+ {
+   void *p;
+@@ -1735,6 +1737,8 @@ WRAPPER2(void *, dlsym, void *handle, char *symbol)
+   return p;
+ }
+ 
++#endif /* HAVE_DLFCN_H */
++
+ 
+ #if defined (HAVE_SYS_IPC_H) && defined (HAVE_SYS_SEM_H) && defined (HAVE_SYS_SHM_H)
+ 
+diff --git a/libmudflap/mf-runtime.h b/libmudflap/mf-runtime.h
+index 4c512d5a690..662180fe28a 100644
+--- a/libmudflap/mf-runtime.h
++++ b/libmudflap/mf-runtime.h
+@@ -97,6 +97,7 @@ extern int __mf_set_options (const char *opts);
+    instrumented modules are meant to be affected.  */
+ 
+ #ifdef _MUDFLAP
++#ifndef __USER_LABEL_PREFIX__
+ #pragma redefine_extname memcpy __mfwrap_memcpy
+ #pragma redefine_extname memmove __mfwrap_memmove
+ #pragma redefine_extname memset __mfwrap_memset
+@@ -230,6 +231,141 @@ extern int __mf_set_options (const char *opts);
+ #pragma redefine_extname getprotoent __mfwrap_getprotoent
+ #pragma redefine_extname getprotobyname __mfwrap_getprotobyname
+ #pragma redefine_extname getprotobynumber __mfwrap_getprotobynumber
++#else
++#pragma redefine_extname memcpy ___mfwrap_memcpy
++#pragma redefine_extname memmove ___mfwrap_memmove
++#pragma redefine_extname memset ___mfwrap_memset
++#pragma redefine_extname memcmp ___mfwrap_memcmp
++#pragma redefine_extname memchr ___mfwrap_memchr
++#pragma redefine_extname memrchr ___mfwrap_memrchr
++#pragma redefine_extname strcpy ___mfwrap_strcpy
++#pragma redefine_extname strncpy ___mfwrap_strncpy
++#pragma redefine_extname strcat ___mfwrap_strcat
++#pragma redefine_extname strncat ___mfwrap_strncat
++#pragma redefine_extname strcmp ___mfwrap_strcmp
++#pragma redefine_extname strcasecmp ___mfwrap_strcasecmp
++#pragma redefine_extname strncmp ___mfwrap_strncmp
++#pragma redefine_extname strncasecmp ___mfwrap_strncasecmp
++#pragma redefine_extname strdup ___mfwrap_strdup
++#pragma redefine_extname strndup ___mfwrap_strndup
++#pragma redefine_extname strchr ___mfwrap_strchr
++#pragma redefine_extname strrchr ___mfwrap_strrchr
++#pragma redefine_extname strstr ___mfwrap_strstr
++#pragma redefine_extname memmem ___mfwrap_memmem
++#pragma redefine_extname strlen ___mfwrap_strlen
++#pragma redefine_extname strnlen ___mfwrap_strnlen
++#pragma redefine_extname bzero ___mfwrap_bzero
++#pragma redefine_extname bcopy ___mfwrap_bcopy
++#pragma redefine_extname bcmp ___mfwrap_bcmp
++#pragma redefine_extname index ___mfwrap_index
++#pragma redefine_extname rindex ___mfwrap_rindex
++#pragma redefine_extname asctime ___mfwrap_asctime
++#pragma redefine_extname ctime ___mfwrap_ctime
++#pragma redefine_extname gmtime ___mfwrap_gmtime
++#pragma redefine_extname localtime ___mfwrap_localtime
++#pragma redefine_extname time ___mfwrap_time
++#pragma redefine_extname strerror ___mfwrap_strerror
++#pragma redefine_extname fopen ___mfwrap_fopen
++#pragma redefine_extname fdopen ___mfwrap_fdopen
++#pragma redefine_extname freopen ___mfwrap_freopen
++#pragma redefine_extname fclose ___mfwrap_fclose
++#pragma redefine_extname fread ___mfwrap_fread
++#pragma redefine_extname fwrite ___mfwrap_fwrite
++#pragma redefine_extname fgetc ___mfwrap_fgetc
++#pragma redefine_extname fgets ___mfwrap_fgets
++#pragma redefine_extname getc ___mfwrap_getc
++#pragma redefine_extname gets ___mfwrap_gets
++#pragma redefine_extname ungetc ___mfwrap_ungetc
++#pragma redefine_extname fputc ___mfwrap_fputc
++#pragma redefine_extname fputs ___mfwrap_fputs
++#pragma redefine_extname putc ___mfwrap_putc
++#pragma redefine_extname puts ___mfwrap_puts
++#pragma redefine_extname clearerr ___mfwrap_clearerr
++#pragma redefine_extname feof ___mfwrap_feof
++#pragma redefine_extname ferror ___mfwrap_ferror
++#pragma redefine_extname fileno ___mfwrap_fileno
++#pragma redefine_extname printf ___mfwrap_printf
++#pragma redefine_extname fprintf ___mfwrap_fprintf
++#pragma redefine_extname sprintf ___mfwrap_sprintf
++#pragma redefine_extname snprintf ___mfwrap_snprintf
++#pragma redefine_extname vprintf ___mfwrap_vprintf
++#pragma redefine_extname vfprintf ___mfwrap_vfprintf
++#pragma redefine_extname vsprintf ___mfwrap_vsprintf
++#pragma redefine_extname vsnprintf ___mfwrap_vsnprintf
++#pragma redefine_extname access ___mfwrap_access
++#pragma redefine_extname remove ___mfwrap_remove
++#pragma redefine_extname fflush ___mfwrap_fflush
++#pragma redefine_extname fseek ___mfwrap_fseek
++#pragma redefine_extname ftell ___mfwrap_ftell
++#pragma redefine_extname rewind ___mfwrap_rewind
++#pragma redefine_extname fgetpos ___mfwrap_fgetpos
++#pragma redefine_extname fsetpos ___mfwrap_fsetpos
++#pragma redefine_extname stat ___mfwrap_stat
++#pragma redefine_extname fstat ___mfwrap_fstat
++#pragma redefine_extname lstat ___mfwrap_lstat
++#pragma redefine_extname mkfifo ___mfwrap_mkfifo
++#pragma redefine_extname setvbuf ___mfwrap_setvbuf
++#pragma redefine_extname setbuf ___mfwrap_setbuf
++#pragma redefine_extname setbuffer ___mfwrap_setbuffer
++#pragma redefine_extname setlinebuf ___mfwrap_setlinebuf
++#pragma redefine_extname opendir ___mfwrap_opendir
++#pragma redefine_extname closedir ___mfwrap_closedir
++#pragma redefine_extname readdir ___mfwrap_readdir
++#pragma redefine_extname recv ___mfwrap_recv
++#pragma redefine_extname recvfrom ___mfwrap_recvfrom
++#pragma redefine_extname recvmsg ___mfwrap_recvmsg
++#pragma redefine_extname send ___mfwrap_send
++#pragma redefine_extname sendto ___mfwrap_sendto
++#pragma redefine_extname sendmsg ___mfwrap_sendmsg
++#pragma redefine_extname setsockopt ___mfwrap_setsockopt
++#pragma redefine_extname getsockopt ___mfwrap_getsockopt
++#pragma redefine_extname accept ___mfwrap_accept
++#pragma redefine_extname bind ___mfwrap_bind
++#pragma redefine_extname connect ___mfwrap_connect
++#pragma redefine_extname gethostname ___mfwrap_gethostname
++#pragma redefine_extname sethostname ___mfwrap_sethostname
++#pragma redefine_extname gethostbyname ___mfwrap_gethostbyname
++#pragma redefine_extname wait ___mfwrap_wait
++#pragma redefine_extname waitpid ___mfwrap_waitpid
++#pragma redefine_extname popen ___mfwrap_popen
++#pragma redefine_extname pclose ___mfwrap_pclose
++#pragma redefine_extname execve ___mfwrap_execve
++#pragma redefine_extname execv ___mfwrap_execv
++#pragma redefine_extname execvp ___mfwrap_execvp
++#pragma redefine_extname system ___mfwrap_system
++#pragma redefine_extname dlopen ___mfwrap_dlopen
++#pragma redefine_extname dlerror ___mfwrap_dlerror
++#pragma redefine_extname dlsym ___mfwrap_dlsym
++#pragma redefine_extname dlclose ___mfwrap_dlclose
++#pragma redefine_extname fopen64 ___mfwrap_fopen64
++#pragma redefine_extname freopen64 ___mfwrap_freopen64
++#pragma redefine_extname stat64 ___mfwrap_stat64
++#pragma redefine_extname fseeko64 ___mfwrap_fseeko64
++#pragma redefine_extname ftello64 ___mfwrap_ftello64
++#pragma redefine_extname semop ___mfwrap_semop
++#pragma redefine_extname semctl ___mfwrap_semctl
++#pragma redefine_extname shmctl ___mfwrap_shmctl
++#pragma redefine_extname shmat ___mfwrap_shmat
++#pragma redefine_extname shmdt ___mfwrap_shmdt
++#pragma redefine_extname __ctype_b_loc ___mfwrap___ctype_b_loc
++#pragma redefine_extname __ctype_toupper_loc ___mfwrap___ctype_toupper_loc
++#pragma redefine_extname __ctype_tolower_loc ___mfwrap___ctype_tolower_loc
++#pragma redefine_extname getlogin ___mfwrap_getlogin
++#pragma redefine_extname cuserid ___mfwrap_cuserid
++#pragma redefine_extname getpwnam ___mfwrap_getpwnam
++#pragma redefine_extname getpwuid ___mfwrap_getpwuid
++#pragma redefine_extname getgrnam ___mfwrap_getgrnam
++#pragma redefine_extname getgrgid ___mfwrap_getgrgid
++#pragma redefine_extname getservent ___mfwrap_getservent
++#pragma redefine_extname getservbyname ___mfwrap_getservbyname
++#pragma redefine_extname getservbyport ___mfwrap_getservbyport
++#pragma redefine_extname gai_strerror ___mfwrap_gai_strerror
++#pragma redefine_extname getmntent ___mfwrap_getmntent
++#pragma redefine_extname inet_ntoa ___mfwrap_inet_ntoa
++#pragma redefine_extname getprotoent ___mfwrap_getprotoent
++#pragma redefine_extname getprotobyname ___mfwrap_getprotobyname
++#pragma redefine_extname getprotobynumber ___mfwrap_getprotobynumber
++#endif
+ 
+ /* Disable glibc macros.  */
+ #define __NO_STRING_INLINES
+diff --git a/libobjc/configure b/libobjc/configure
+index e6f0afdfa3b..59e4a5fea2a 100755
+--- a/libobjc/configure
++++ b/libobjc/configure
+@@ -4812,6 +4812,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -8480,6 +8486,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libquadmath/configure b/libquadmath/configure
+index 9d979337d18..fc45ba2710c 100755
+--- a/libquadmath/configure
++++ b/libquadmath/configure
+@@ -8410,6 +8410,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libssp/configure b/libssp/configure
+index bd3f5662c4b..53a3ac87a1b 100755
+--- a/libssp/configure
++++ b/libssp/configure
+@@ -5185,6 +5185,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -8547,6 +8553,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/libssp/ssp.c b/libssp/ssp.c
+index aaa5a322c8d..886dd8160d3 100644
+--- a/libssp/ssp.c
++++ b/libssp/ssp.c
+@@ -63,6 +63,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ #ifdef HAVE_SYSLOG_H
+ # include <syslog.h>
+ #endif
++#ifdef __MINT__
++#include <mint/osbind.h>
++#endif
+ 
+ void *__stack_chk_guard = 0;
+ 
+@@ -98,6 +101,9 @@ fail (const char *msg1, size_t msg1len, const char *msg3)
+ {
+ #ifdef __GNU_LIBRARY__
+   extern char * __progname;
++#elif defined (__MINT__)
++  extern char * program_invocation_short_name;
++  #define __progname program_invocation_short_name
+ #else
+   static const char __progname[] = "";
+ #endif
+@@ -139,6 +145,9 @@ fail (const char *msg1, size_t msg1len, const char *msg3)
+     syslog (LOG_CRIT, msg3);
+ #endif /* HAVE_SYSLOG_H */
+ 
++#ifdef __MINT__
++    Pterm(127);
++#else
+   /* Try very hard to exit.  Note that signals may be blocked preventing
+      the first two options from working.  The use of volatile is here to
+      prevent optimizers from "knowing" that __builtin_trap is called first,
+@@ -160,6 +169,7 @@ fail (const char *msg1, size_t msg1len, const char *msg3)
+           break;
+         }
+   }
++#endif
+ }
+ 
+ void
+diff --git a/libstdc++-v3/config/os/mint/ctype_base.h b/libstdc++-v3/config/os/mint/ctype_base.h
+new file mode 100644
+index 00000000000..d6b3ec7d56a
+--- /dev/null
++++ b/libstdc++-v3/config/os/mint/ctype_base.h
+@@ -0,0 +1,67 @@
++// Locale support -*- C++ -*-
++
++// Copyright (C) 1997-2016 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++//
++// ISO C++ 14882: 22.1  Locales
++//
++
++//  We don't use the C-locale masks defined in usr/include/ctype.h
++//  because those masks do not conform to the requirements of 22.2.1.
++//  In particular, a separate 'print' bitmask does not exist (isprint(c)
++//  relies on a combination of flags) and the  '_ALPHA' mask is also a
++//  combination of simple bitmasks.  Thus, we define libstdc++-specific
++//  masks here, based on the generic masks, and the corresponding
++//  classic_table in ctype_noninline.h.
++
++namespace std _GLIBCXX_VISIBILITY(default)
++{
++_GLIBCXX_BEGIN_NAMESPACE_VERSION
++
++  /// @brief  Base class for ctype.
++  struct ctype_base
++  {
++    // Non-standard typedefs.
++    typedef const int* 		__to_type;
++
++    // NB: Offsets into ctype<char>::_M_table force a particular size
++    // on the mask type. Because of this, we don't use an enum.
++    typedef unsigned short 	mask;   
++    static const mask upper	= 1 << 0;
++    static const mask lower	= 1 << 1;
++    static const mask alpha	= 1 << 2;
++    static const mask digit	= 1 << 3;
++    static const mask xdigit	= 1 << 4;
++    static const mask space	= 1 << 5;
++    static const mask print	= 1 << 6;
++    static const mask graph	= (1 << 2) | (1 << 3) | (1 << 9);  // alnum|punct
++    static const mask cntrl	= 1 << 8;
++    static const mask punct 	= 1 << 9;
++    static const mask alnum	= (1 << 2) | (1 << 3);  // alpha|digit
++#if __cplusplus >= 201103L
++    static const mask blank	= 1 << 10;
++#endif
++  };
++
++_GLIBCXX_END_NAMESPACE_VERSION
++} // namespace
+diff --git a/libstdc++-v3/config/os/mint/ctype_inline.h b/libstdc++-v3/config/os/mint/ctype_inline.h
+new file mode 100644
+index 00000000000..586c2aeab3e
+--- /dev/null
++++ b/libstdc++-v3/config/os/mint/ctype_inline.h
+@@ -0,0 +1,75 @@
++// Locale support -*- C++ -*-
++
++// Copyright (C) 2000-2016 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++/** @file bits/ctype_inline.h
++ *  This is an internal header file, included by other library headers.
++ *  Do not attempt to use it directly. @headername{locale}
++ */
++
++//
++// ISO C++ 14882: 22.1  Locales
++//
++
++// ctype bits to be inlined go here. Non-inlinable (ie virtual do_*)
++// functions go in ctype.cc
++
++namespace std _GLIBCXX_VISIBILITY(default)
++{
++_GLIBCXX_BEGIN_NAMESPACE_VERSION
++
++  bool
++  ctype<char>::
++  is(mask __m, char __c) const
++  { return (_M_table[static_cast<unsigned char>(__c) ] & __m); }
++
++
++  const char*
++  ctype<char>::
++  is(const char* __low, const char* __high, mask* __vec) const
++  {
++    while (__low < __high)
++      *__vec++ = _M_table[static_cast<unsigned char>(*__low++)];
++    return __high;
++  }
++
++  const char*
++  ctype<char>::
++  scan_is(mask __m, const char* __low, const char* __high) const
++  {
++    while (__low < __high && !this->is(__m, *__low))
++      ++__low;
++    return __low;
++  }
++
++  const char*
++  ctype<char>::
++  scan_not(mask __m, const char* __low, const char* __high) const
++  {
++    while (__low < __high && this->is(__m, *__low) != 0)
++      ++__low;
++    return __low;
++  }
++
++_GLIBCXX_END_NAMESPACE_VERSION
++} // namespace
+diff --git a/libstdc++-v3/config/os/mint/ctype_noninline.h b/libstdc++-v3/config/os/mint/ctype_noninline.h
+new file mode 100644
+index 00000000000..30045899f76
+--- /dev/null
++++ b/libstdc++-v3/config/os/mint/ctype_noninline.h
+@@ -0,0 +1,92 @@
++// Locale support -*- C++ -*-
++
++// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2009, 2010
++//  Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++/** @file bits/ctype_noninline.h
++ *  This is an internal header file, included by other library headers.
++ *  Do not attempt to use it directly. @headername{locale}
++ */
++
++//
++// ISO C++ 14882: 22.1  Locales
++//
++  
++// Information as gleaned from /usr/include/ctype.h
++
++  const ctype_base::mask*
++  ctype<char>::classic_table() throw()
++  { return 0; }
++
++  ctype<char>::ctype(__c_locale, const mask* __table, bool __del, 
++		     size_t __refs) 
++  : facet(__refs), _M_del(__table != 0 && __del), 
++  _M_toupper(NULL), _M_tolower(NULL), 
++  _M_table(__table ? __table : classic_table()) 
++  { 
++    memset(_M_widen, 0, sizeof(_M_widen));
++    _M_widen_ok = 0;
++    memset(_M_narrow, 0, sizeof(_M_narrow));
++    _M_narrow_ok = 0;
++  }
++
++  ctype<char>::ctype(const mask* __table, bool __del, size_t __refs) 
++  : facet(__refs), _M_del(__table != 0 && __del), 
++  _M_toupper(NULL), _M_tolower(NULL), 
++  _M_table(__table ? __table : classic_table())
++  { 
++    memset(_M_widen, 0, sizeof(_M_widen));
++    _M_widen_ok = 0;
++    memset(_M_narrow, 0, sizeof(_M_narrow));
++    _M_narrow_ok = 0;
++  }
++
++  char
++  ctype<char>::do_toupper(char __c) const
++  { return ::toupper((int) __c); }
++
++  const char*
++  ctype<char>::do_toupper(char* __low, const char* __high) const
++  {
++    while (__low < __high)
++      {
++	*__low = ::toupper((int) *__low);
++	++__low;
++      }
++    return __high;
++  }
++
++  char
++  ctype<char>::do_tolower(char __c) const
++  { return ::tolower((int) __c); }
++
++  const char* 
++  ctype<char>::do_tolower(char* __low, const char* __high) const
++  {
++    while (__low < __high)
++      {
++	*__low = ::tolower((int) *__low);
++	++__low;
++      }
++    return __high;
++  }
+diff --git a/libstdc++-v3/config/os/mint/os_defines.h b/libstdc++-v3/config/os/mint/os_defines.h
+new file mode 100644
+index 00000000000..3199bf30bb3
+--- /dev/null
++++ b/libstdc++-v3/config/os/mint/os_defines.h
+@@ -0,0 +1,36 @@
++// Specific definitions for generic platforms  -*- C++ -*-
++
++// Copyright (C) 2000, 2009, 2010 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++/** @file bits/os_defines.h
++ *  This is an internal header file, included by other library headers.
++ *  Do not attempt to use it directly. @headername{iosfwd}
++ */
++
++#ifndef _GLIBCXX_OS_DEFINES
++#define _GLIBCXX_OS_DEFINES 1
++
++// System-specific #define, typedefs, corrections, etc, go here.  This
++// file will come before all others.
++
++#endif
+diff --git a/libstdc++-v3/configure b/libstdc++-v3/configure
+index 84b6ea94a01..e9478a0b373 100755
+--- a/libstdc++-v3/configure
++++ b/libstdc++-v3/configure
+@@ -5890,6 +5890,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -9381,6 +9387,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+@@ -11207,6 +11217,11 @@ else
+     lt_cv_dlopen_libs=
+     ;;
+ 
++  mint*)
++    lt_cv_dlopen="no"
++    lt_cv_dlopen_libs=
++    ;;
++
+   darwin*)
+   # if libdl is installed we need to link against it
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for dlopen in -ldl" >&5
+@@ -44718,7 +44733,7 @@ $as_echo "#define HAVE_TLS 1" >>confdefs.h
+ 	;;
+     esac
+     ;;
+-  *-linux* | *-uclinux* | *-gnu* | *-kfreebsd*-gnu | *-knetbsd*-gnu)
++  *-linux* | *-uclinux* | *-gnu* | *-kfreebsd*-gnu | *-knetbsd*-gnu | *-mint*)
+ 
+   # All these tests are for C++; save the language and the compiler flags.
+   # The CXXFLAGS thing is suspicious, but based on similar bits previously
+diff --git a/libstdc++-v3/configure.host b/libstdc++-v3/configure.host
+index e29404c026f..123dea6a0ff 100644
+--- a/libstdc++-v3/configure.host
++++ b/libstdc++-v3/configure.host
+@@ -258,6 +258,10 @@ case "${host_os}" in
+     error_constants_dir="os/mingw32"
+     OPT_LDFLAGS="${OPT_LDFLAGS} \$(lt_host_flags)"
+     ;;
++  mint*)
++    SECTION_FLAGS="${SECTION_FLAGS} -D_GNU_SOURCE"
++    os_include_dir="os/mint"
++    ;;
+   netbsd*)
+     os_include_dir="os/bsd/netbsd"
+     ;;
+diff --git a/libstdc++-v3/crossconfig.m4 b/libstdc++-v3/crossconfig.m4
+index 2d0a4a83ded..2964c93cd25 100644
+--- a/libstdc++-v3/crossconfig.m4
++++ b/libstdc++-v3/crossconfig.m4
+@@ -141,7 +141,7 @@ case "${host}" in
+ 	;;
+     esac
+     ;;
+-  *-linux* | *-uclinux* | *-gnu* | *-kfreebsd*-gnu | *-knetbsd*-gnu)
++  *-linux* | *-uclinux* | *-gnu* | *-kfreebsd*-gnu | *-knetbsd*-gnu | *-mint*)
+     GLIBCXX_CHECK_COMPILER_FEATURES
+     GLIBCXX_CHECK_LINKER_FEATURES
+     GLIBCXX_CHECK_MATH_SUPPORT
+diff --git a/libtool.m4 b/libtool.m4
+index 67321a7d070..c4d4b98e3c2 100644
+--- a/libtool.m4
++++ b/libtool.m4
+@@ -1500,6 +1500,12 @@ AC_CACHE_VAL([lt_cv_sys_max_cmd_len], [dnl
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   netbsd* | freebsd* | openbsd* | darwin* | dragonfly*)
+     # This has been around since 386BSD, at least.  Likely further.
+     if test -x /sbin/sysctl; then
+diff --git a/lto-plugin/configure b/lto-plugin/configure
+index 48b414e99f7..4a4ea507b91 100755
+--- a/lto-plugin/configure
++++ b/lto-plugin/configure
+@@ -8462,6 +8462,10 @@ _LT_EOF
+       hardcode_shlibpath_var=no
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     *)
+       if $LD --help 2>&1 | $GREP ': supported targets:.* elf' > /dev/null; then
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+diff --git a/zlib/configure b/zlib/configure
+index f7fe2b7bd51..b0392e1c5ff 100755
+--- a/zlib/configure
++++ b/zlib/configure
+@@ -4652,6 +4652,12 @@ else
+     lt_cv_sys_max_cmd_len=8192;
+     ;;
+ 
++  mint*)
++    # On MiNT this test can take minutes to run, and I'm not sure it's
++    # healthy for this platform. Let's restrict it to 8192.
++    lt_cv_sys_max_cmd_len=8192;
++    ;;
++
+   amigaos*)
+     # On AmigaOS with pdksh, this test takes hours, literally.
+     # So we just punt and use a minimum line length of 8192.
+@@ -8276,6 +8282,10 @@ _LT_EOF
+       esac
+       ;;
+ 
++    mint*)
++      ld_shlibs=no
++      ;;
++
+     sunos4*)
+       archive_cmds='$LD -assert pure-text -Bshareable -o $lib $libobjs $deplibs $linker_flags'
+       wlarc=
