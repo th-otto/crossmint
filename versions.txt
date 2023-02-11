@@ -13,6 +13,9 @@
           - project: gcc-9
             version: 9.3.1
             source_archive: https://tho-otto.de/download/mint/gcc-9.3.1.tar.xz
+          - project: gcc-10
+            version: 10.4.0
+            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-10.4.0/gcc-10.4.0.tar.xz
           - project: gcc-1
             version: 11.3.0
             source_archive: https://ftp.gnu.org/gnu/gcc/gcc-11.3.0/gcc-11.3.0.tar.xz

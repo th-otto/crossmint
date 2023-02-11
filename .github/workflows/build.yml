@@ -11,7 +11,7 @@ jobs:
     runs-on: macos-12
     strategy:
       matrix:
-        project: [ binutils, gcc-464, gcc-7, gcc-8, gcc-9, gcc-12, mintbin ]
+        project: [ binutils, gcc-464, gcc-7, gcc-8, gcc-9, gcc-10, gcc-12, mintbin ]
         target: [ m68k-atari-mint ]
         include:
           - project: binutils
@@ -29,6 +29,9 @@ jobs:
           - project: gcc-9
             version: 9.3.1
             source_archive: https://tho-otto.de/download/mint/gcc-9.3.1.tar.xz
+          - project: gcc-10
+            version: 10.4.0
+            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-10.4.0/gcc-10.4.0.tar.xz
           - project: gcc-12
             version: 12.2.0
             source_archive: https://ftp.gnu.org/gnu/gcc/gcc-12.2.0/gcc-12.2.0.tar.xz
