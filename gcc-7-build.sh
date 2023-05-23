@@ -6,6 +6,12 @@
 
 me="$0"
 
+unset CDPATH
+unset LANG LANGUAGE LC_ALL LC_CTYPE LC_TIME LC_NUMERIC LC_COLLATE LC_MONETARY LC_MESSAGES
+
+scriptdir=${0%/*}
+scriptdir=`cd "${scriptdir}"; pwd`
+
 PACKAGENAME=gcc
 VERSION=-7.5.0
 VERSIONPATCH=-20230210
@@ -31,6 +37,14 @@ GCC=${GCC-gcc}
 GXX=${GXX-g++}
 
 #
+# Where to put the executables for later use.
+# This should be the same as the one configured
+# in the binutils script
+#
+here=`pwd`
+PKG_DIR="$here/binary7-package"
+
+#
 # The prefix where the executables should
 # be installed later. If installed properly,
 # this actually does not matter much, since
@@ -41,29 +55,30 @@ TAR=${TAR-tar}
 TAR_OPTS=${TAR_OPTS---owner=0 --group=0}
 SED_INPLACE=-i
 case `uname -s` in
-	MINGW64*) host=mingw64; MINGW_PREFIX=/mingw64; ;;
-	MINGW32*) host=mingw32; MINGW_PREFIX=/mingw32; ;;
-	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; MINGW_PREFIX=/$host ;;
-	MSYS*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; MINGW_PREFIX=/$host ;;
-	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi ;;
-	Darwin*) host=macos; STRIP=strip; TAR_OPTS=; SED_INPLACE="-i ''" ;;
-	*) host=linux64
-	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=linux32; fi
+	MINGW64*) host=mingw64; PREFIX=/mingw64; ;;
+	MINGW32*) host=mingw32; PREFIX=/mingw32; ;;
+	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; PREFIX=/$host ;;
+	MSYS*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; PREFIX=/$host ;;
+	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi; PREFIX=/usr ;;
+	Darwin*) host=macos; STRIP=strip; TAR_OPTS=; SED_INPLACE="-i ''"; PREFIX=/opt/cross-mint ;;
+	*) PREFIX=/usr
+	   host=linux64
+	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then
+	      host=linux32
+	      PKG_DIR+="-32bit"
+	      export PATH=${PKG_DIR}/usr/bin:$PATH
+          #
+          # This is needed because otherwise configure scripts
+          # will pick /usr/${TARGET}/bin/$tool which will be a 64bit version
+          #
+	      build_time_tools=--with-build-time-tools=${PKG_DIR}/usr/${TARGET}/bin
+	   fi
 	   ;;
-esac
-case $host in
-	mingw* | msys*) PREFIX=${MINGW_PREFIX} ;;
-	macos*) PREFIX=/opt/cross-mint ;;
-	*) PREFIX=/usr ;;
 esac
 
 #
 # Where to look for the original source archives
 #
-case $host in
-	mingw* | msys*) here=`pwd` ;;
-	*) here=`pwd` ;;
-esac
 ARCHIVES_DIR="$here"
 
 #
@@ -91,13 +106,6 @@ BUILD_DIR="$here"
 MINT_BUILD_DIR="$BUILD_DIR/gcc-build"
 
 #
-# Where to put the executables for later use.
-# This should be the same as the one configured
-# in the binutils script
-#
-PKG_DIR="$here/binary7-package"
-
-#
 # Where to put the binary packages
 #
 DIST_DIR="$here/pkgs"
@@ -115,12 +123,17 @@ fi
 #
 # whether to include the fortran backend
 #
-with_fortran=false
+with_fortran=true
 
 #
 # whether to include the D backend
 #
 with_D=false
+
+#
+# whether to include the modula-2 backend
+#
+with_m2=false
 
 #
 # whether to include the ada backend
@@ -163,6 +176,7 @@ OTHER_PATCHES="
 patches/gmp/gmp-universal.patch
 patches/gmp/gmp-6.2.1-CVE-2021-43618.patch
 patches/gmp/gmp-6.2.1-arm64-invert_limb.patch
+gmp-for-gcc.sh
 "
 
 if test ! -f ".patched-${PACKAGENAME}${VERSION}"; then
@@ -273,8 +287,8 @@ mkdir -p "$MINT_BUILD_DIR"
 
 cd "$MINT_BUILD_DIR"
 
-CFLAGS_FOR_BUILD="-O2 -fomit-frame-pointer -ftrack-macro-expansion=0"
-CFLAGS_FOR_TARGET="-O2 -fomit-frame-pointer -ftrack-macro-expansion=0"
+CFLAGS_FOR_BUILD="-O2 -fomit-frame-pointer"
+CFLAGS_FOR_TARGET="-O2 -fomit-frame-pointer"
 LDFLAGS_FOR_BUILD=""
 CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 CXXFLAGS_FOR_TARGET="$CFLAGS_FOR_TARGET"
@@ -287,6 +301,7 @@ languages=c,c++
 $with_fortran && languages="$languages,fortran"
 $with_ada && languages="$languages,ada"
 $with_D && { languages="$languages,d"; enable_libphobos=; } # --enable-libphobos does not work because of missing swapcontext() in mintlib
+$with_m2 && languages="$languages,m2"
 ranlib=ranlib
 STRIP=${STRIP-strip -p}
 
@@ -345,6 +360,7 @@ fi
 mpfr_config=
 
 unset GLIBC_SO
+without_zstd=
 
 case $host in
 	macos*)
@@ -369,6 +385,8 @@ case $host in
 		CXXFLAGS_FOR_BUILD="-pipe -O2 -stdlib=libc++ ${ARCHS}"
 		LDFLAGS_FOR_BUILD="-Wl,-headerpad_max_install_names ${ARCHS}"
 		mpfr_config="--with-mpc=${CROSSTOOL_DIR}"
+		# zstd gives link errors on github runners
+		without_zstd=--without-zstd
 		;;
 	linux64)
 		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -include $srcdir/gcc/libcwrap.h"
@@ -377,13 +395,12 @@ case $host in
 		;;
 esac
 
-case $BUILD in
-	i686-*-msys* | x86_64-*-msys*)
-		# we use in-tree versions of those libraries now
-		# mpfr_config="--with-mpc=${MINGW_PREFIX} --with-gmp=${MINGW_PREFIX} --with-mpfr=${MINGW_PREFIX}"
-		;;
-esac
 
+#
+# Note: for ADA, you have to use the same major of gcc as the one we are compiling here.
+# If your hosts compiler is a newer one, set
+# GCC=gcc-7 GXX=g++-7 before running this script
+#
 case $GCC in
 	*-[0-9]*)
 		adahostsuffix=-"${GCC##*-}"
@@ -434,173 +451,7 @@ fail()
 #
 # Now, for darwin, build gmp etc.
 #
-gmp='gmp-6.2.1.tar.bz2'
-mpfr='mpfr-3.1.4.tar.bz2'
-mpc='mpc-1.0.3.tar.gz'
-isl='isl-0.18.tar.bz2'
-base_url='https://gcc.gnu.org/pub/gcc/infrastructure/'
-
-if test $host = macos; then
-	mkdir -p "$CROSSTOOL_DIR"
-
-	if test ! -f "$CROSSTOOL_DIR/lib/libgmp.a"; then
-		cd "$CROSSTOOL_DIR" || exit 1
-		mkdir -p lib include
-		archive=$gmp
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
-		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
-		cd "${package}" || exit 1
-
-		patch -p1 < "$BUILD_DIR/patches/gmp/gmp-universal.patch" || exit 1
-		patch -p1 < "$BUILD_DIR/patches/gmp/gmp-6.2.1-CVE-2021-43618.patch" || exit 1
-		# following patch was taken from SuSE, but failes to compile with clang
-		# patch -p1 < "$BUILD_DIR/patches/gmp/gmp-6.2.1-arm64-invert_limb.patch" || exit 1
-		
-		rm -f "$CROSSTOOL_DIR/include/gmp.h"
-		
-		mkdir -p build-x86_64
-		cd build-x86_64
-		ABI=64 \
-		CFLAGS="-O2 -arch x86_64" \
-		CXXFLAGS="-O2 -arch x86_64" \
-		LDFLAGS="-O2 -arch x86_64" \
-		../configure --host=x86_64-apple-darwin \
-		--with-pic --disable-shared --prefix="$CROSSTOOL_DIR/install-x86_64" || fail "gmp"
-		${MAKE} $JOBS || exit 1
-		${MAKE} install
-		cd "$CROSSTOOL_DIR"
-		sed -e 's/ -arch [a-z0-9_]*//' install-x86_64/include/gmp.h > install-x86_64/include/gmp.h.tmp
-		mv install-x86_64/include/gmp.h.tmp install-x86_64/include/gmp.h
-
-		if test "$BUILD_ARM64" = yes; then
-			cd "${CROSSTOOL_DIR}/${package}"
-			mkdir -p build-arm64
-			cd build-arm64
-			ABI=64 \
-			CFLAGS="-O2 -arch arm64" \
-			CXXFLAGS="-O2 -arch arm64" \
-			LDFLAGS="-O2 -arch arm64" \
-			../configure --host=aarch64-apple-darwin \
-			--with-pic --disable-shared --prefix="$CROSSTOOL_DIR/install-arm64" || fail "gmp"
-			${MAKE} $JOBS || exit 1
-			${MAKE} install
-			cd "$CROSSTOOL_DIR"
-			# lipo -create install-arm64/lib/libgmp.10.dylib -create install-x86_64/lib/libgmp.10.dylib -output lib/libgmp.10.dylib
-			lipo -create install-arm64/lib/libgmp.a -create install-x86_64/lib/libgmp.a -output lib/libgmp.a
-		else
-			cd "$CROSSTOOL_DIR"
-			rm -f install-x86_64/lib/*.la
-			mv install-x86_64/lib/* lib
-		fi
-		
-		mv install-x86_64/include/* include
-		rm -f lib/*.la
-		rm -rf install-*
-	fi
-
-	
-	if test ! -f "$CROSSTOOL_DIR/lib/libmpfr.a"; then
-		cd "$CROSSTOOL_DIR" || exit 1
-		mkdir -p lib include
-		archive=$mpfr
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
-		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
-		cd "${package}" || exit 1
-
-		rm -f include/mpfr.h include/mpf2mpfr.h
-		
-		mkdir -p build-x86_64
-		cd build-x86_64
-		CFLAGS="-O2 -arch x86_64" \
-		CXXFLAGS="-O2 -arch x86_64" \
-		LDFLAGS="-O2 -arch x86_64" \
-		../configure --host=x86_64-apple-darwin \
-		--with-gmp="$CROSSTOOL_DIR" --disable-shared --prefix="$CROSSTOOL_DIR/install-x86_64" || fail "mpfr"
-		${MAKE} $JOBS || exit 1
-		${MAKE} install
-
-		if test "$BUILD_ARM64" = yes; then
-			cd "${CROSSTOOL_DIR}/${package}"
-			mkdir -p build-arm64
-			cd build-arm64
-			CFLAGS="-O2 -arch arm64" \
-			CXXFLAGS="-O2 -arch arm64" \
-			LDFLAGS="-O2 -arch arm64" \
-			../configure --host=aarch64-apple-darwin \
-			--with-gmp="$CROSSTOOL_DIR" --disable-shared --prefix="$CROSSTOOL_DIR/install-arm64" || fail "mpfr"
-			${MAKE} $JOBS || exit 1
-			${MAKE} install
-			cd "$CROSSTOOL_DIR"
-			# lipo -create install-arm64/lib/libmpfr.4.dylib -create install-x86_64/lib/libmpfr.4.dylib -output lib/libmpfr.4.dylib
-			lipo -create install-arm64/lib/libmpfr.a -create install-x86_64/lib/libmpfr.a -output lib/libmpfr.a
-		else
-			cd "$CROSSTOOL_DIR"
-			rm -f install-x86_64/lib/*.la
-			mv install-x86_64/lib/* lib
-		fi
-		
-		mv install-x86_64/include/* include
-		rm -f lib/*.la
-		rm -rf install-*
-	fi
-
-	
-	if test ! -f "$CROSSTOOL_DIR/lib/libmpc.a"; then
-		cd "$CROSSTOOL_DIR" || exit 1
-		mkdir -p lib include
-		archive=$mpc
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
-		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
-		cd "${package}" || exit 1
-
-		rm -f include/mpc.h
-		
-		mkdir -p build-x86_64
-		cd build-x86_64
-		CFLAGS="-O2 -arch x86_64" \
-		CXXFLAGS="-O2 -arch x86_64" \
-		LDFLAGS="-O2 -arch x86_64" \
-		../configure --host=x86_64-apple-darwin \
-		--with-gmp="$CROSSTOOL_DIR" --disable-shared --prefix="$CROSSTOOL_DIR/install-x86_64" || fail "mpc"
-		${MAKE} $JOBS || exit 1
-		${MAKE} install
-		
-		if test "$BUILD_ARM64" = yes; then
-			cd "${CROSSTOOL_DIR}/${package}"
-			mkdir -p build-arm64
-			cd build-arm64
-			CFLAGS="-O2 -arch arm64" \
-			CXXFLAGS="-O2 -arch arm64" \
-			LDFLAGS="-O2 -arch arm64" \
-			../configure --host=aarch64-apple-darwin \
-			--with-gmp="$CROSSTOOL_DIR" --disable-shared --prefix="$CROSSTOOL_DIR/install-arm64" || fail "mpc"
-			${MAKE} $JOBS || exit 1
-			${MAKE} install
-			cd "$CROSSTOOL_DIR"
-			# lipo -create install-arm64/lib/libmpc.3.dylib -create install-x86_64/lib/libmpc.3.dylib -output lib/libmpc.3.dylib
-			lipo -create install-arm64/lib/libmpc.a -create install-x86_64/lib/libmpc.a -output lib/libmpc.a
-		else
-			cd "$CROSSTOOL_DIR"
-			rm -f install-x86_64/lib/*.la
-			mv install-x86_64/lib/* lib
-		fi
-		
-		mv install-x86_64/include/* include
-		rm -f lib/*.la
-		rm -rf install-*
-	fi
-fi
-
-
+. ${scriptdir}/gmp-for-gcc.sh
 
 cd "$MINT_BUILD_DIR"
 
@@ -633,6 +484,7 @@ $srcdir/configure \
 	--with-gcc --with-gnu-as --with-gnu-ld \
 	--with-system-zlib \
 	--without-static-standard-libraries \
+	--without-stage1-ldflags \
 	--disable-libgomp \
 	--without-newlib \
 	--disable-libstdcxx-pch \
@@ -645,10 +497,11 @@ $srcdir/configure \
 	$enable_plugin \
 	--disable-decimal-float \
 	--disable-nls \
-	--without-zstd \
+	$without_zstd \
 	--with-libiconv-prefix="${PREFIX}" \
 	--with-libintl-prefix="${PREFIX}" \
 	$mpfr_config \
+	$build_time_tools \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root" \
 	--enable-languages="$languages" || fail "gcc"
 
@@ -680,10 +533,10 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 	
 	cd "${INSTALL_DIR}/${PREFIX}/${TARGET}/bin"
 	
-	for i in c++ cpp g++ gcc gcov gfortran gdc; do
-		if test -x ../../bin/${TARGET}-$i; then
-			rm -f ${i} ${i}${BUILD_EXEEXT}
-			$LN_S ../../bin/${TARGET}-$i${BUILD_EXEEXT} $i
+	for tool in c++ cpp g++ gcc gcov gfortran gdc; do
+		if test -x ../../bin/${TARGET}-${tool}; then
+			rm -f ${tool} ${tool}${BUILD_EXEEXT}
+			$LN_S ../../bin/${TARGET}-${tool}${BUILD_EXEEXT} ${tool}
 		fi
 	done
 	
@@ -701,7 +554,8 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		rm -f ${TARGET}-c++${BUILD_EXEEXT} ${TARGET}-c++
 		$LN_S ${TARGET}-g++${BUILD_EXEEXT} ${TARGET}-c++${BUILD_EXEEXT}
 	fi
-	for tool in gcc gfortran gdc gccgo go gofmt; do
+	for tool in gcc gfortran gdc gccgo go gofmt gm2 \
+	            gnat gnatbind gnatchop gnatclean gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref; do
 		if test -x ${TARGET}-${tool} && test ! -h ${TARGET}-${tool}; then
 			rm -f ${TARGET}-${tool}-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-${tool}-${BASE_VER}
 			rm -f ${TARGET}-${tool}-${gcc_major_version}${BUILD_EXEEXT} ${TARGET}-${tool}-${gcc_major_version}
@@ -712,13 +566,6 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 				rm -f ${tool}-${gcc_major_version}${BUILD_EXEEXT} ${tool}-${gcc_major_version}${BUILD_EXEEXT}
 				$LN_S ${TARGET}-${tool}-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-${tool}-${gcc_major_version}${BUILD_EXEEXT}
 			fi
-		fi
-	done
-	for tool in gnat gnatbind gnatchop gnatclean gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref; do
-		if test -x ${TARGET}-${tool} && test ! -h ${TARGET}-${tool}; then
-			rm -f ${TARGET}-${tool}-${gcc_major_version}${BUILD_EXEEXT} ${TARGET}-${tool}-${gcc_major_version}
-			mv ${TARGET}-${tool}${BUILD_EXEEXT} ${TARGET}-${tool}-${gcc_major_version}${BUILD_EXEEXT}
-			$LN_S ${TARGET}-${tool}-${gcc_major_version}${BUILD_EXEEXT} ${TARGET}-${tool}${BUILD_EXEEXT}
 		fi
 	done
 	if test -x ${TARGET}-cpp && test ! -h ${TARGET}-cpp; then
@@ -753,7 +600,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 #
 # move compiler dependant libraries to the gcc subdirectory
 #
-	pushd ${INSTALL_DIR}${PREFIX}/${TARGET}/lib || exit 1
+	cd ${INSTALL_DIR}${PREFIX}/${TARGET}/lib || exit 1
 	libs=`find . -name "lib*.a" ! -path "*/gcc/*"`
 	$TAR -c $libs | $TAR -x -C ${INSTALL_DIR}${gccsubdir}
 	rm -f $libs
@@ -765,7 +612,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 	rmdir m*/*/* || :
 	rmdir m*/* || :
 	rmdir m* || :
-	popd
+	cd "${INSTALL_DIR}"
 
 	case $host in
 		cygwin*) LTO_PLUGIN=cyglto_plugin-0.dll; MY_LTO_PLUGIN=cyglto_plugin_mintelf-${gcc_dir_version}.dll ;;
@@ -774,7 +621,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		*) LTO_PLUGIN=liblto_plugin.so.0.0.0; MY_LTO_PLUGIN=liblto_plugin_mintelf.so.${gcc_dir_version} ;;
 	esac
 	
-	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1}${BUILD_EXEEXT} \
+	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1,cc1gm2,g++-mapper-server}${BUILD_EXEEXT} \
 		${gccsubdir#/}/${LTO_PLUGIN} \
 		${gccsubdir#/}/plugin/gengtype${BUILD_EXEEXT} \
 		${gccsubdir#/}/install-tools/fixincl${BUILD_EXEEXT}; do
@@ -803,15 +650,18 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 			*) echo "removing fixed include file $i"; rm -f $i ;;
 			esac
 		done
+		for i in `find . -type l`; do
+			rm -fv $i
+		done
 		for i in `find . -depth -type d`; do
 			test "$i" = "." || rmdir "$i"
 		done
 	}
 
 	# these are currently identically compiled 2 times; FIXME
-	m68000=`"${INSTALL_DIR}/${PREFIX}/bin/${TARGET}-gcc" -m68000 -print-multi-directory`
 	# this only happens if gcc was patched to put the m68000 libraries also
 	# in a sub-directory of /usr/lib
+	m68000=`"${INSTALL_DIR}/${PREFIX}/bin/${TARGET}-gcc" -m68000 -print-multi-directory`
 	if test "$m68000" = "m68000"; then
 		for dir in . mshort mfastcall mfastcall/mshort; do
 			for f in libgcov.a libgcc.a libcaf_single.a; do
@@ -840,6 +690,8 @@ rm -rf ${PREFIX#/}/share/gcc*/python
 #
 if $with_fortran; then
 	fortran=`find ${gccsubdir#/} -name finclude`
+	fortran="$fortran "${PREFIX#/}/bin/*gfortran*
+	fortran="$fortran "${PREFIX#/}/${TARGET}/bin/*gfortran*
 	fortran="$fortran "${gccsubdir#/}/f951
 	fortran="$fortran "`find ${gccsubdir#/} -name libcaf_single.a`
 	fortran="$fortran "`find ${gccsubdir#/} -name "*gfortran*"`
@@ -871,6 +723,19 @@ if $with_ada; then
 	ada="$ada "${PREFIX#/}/bin/${TARGET}-gnat*
 	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-ada-${host}.tar.xz $ada || exit 1
 	rm -rf $ada
+fi
+
+#
+# create a separate archive for the modula-2 backend
+#
+if $with_m2; then
+	m2=
+	test -d ${gccsubdir#/}include/m2 && m2="$m2 "${gccsubdir#/}include/m2
+	m2="$m2 "`find ${gccsubdir#/} -name "libm2*"`
+	m2="$m2 "`find ${gccsubdir#/} -name "cc1gm2*"`
+	m2="$m2 "${PREFIX#/}/bin/${TARGET}-gm2*
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-m2-${host}.tar.xz $m2 || exit 1
+	rm -rf $m2
 fi
 
 #

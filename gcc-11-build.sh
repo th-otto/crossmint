@@ -13,8 +13,8 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
-VERSION=-12.2.0
-VERSIONPATCH=-20230210
+VERSION=-11.3.0
+VERSIONPATCH=-20230214
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -137,7 +137,7 @@ with_D=true
 #
 # whether to include the ada backend
 #
-with_ada=true
+with_ada=false
 case $host in
 	linux64 | linux32)
 		;;
@@ -153,8 +153,8 @@ esac
 #
 # this patch can be recreated by
 # - cloning https://github.com/th-otto/m68k-atari-mint-gcc.git
-# - checking out the mint/gcc-12 branch
-# - running git diff releases/gcc-12.2.0 HEAD
+# - checking out the mint/gcc-11 branch
+# - running git diff releases/gcc-11.3.0 HEAD
 #
 # when a new GCC is released:
 #   cd <directory where m68k-atari-mint-gcc.git> has been cloned
@@ -166,8 +166,8 @@ esac
 #      git fetch --all
 #      git push --tags
 #   merge new release into our branch:
-#      git checkout mint/gcc-12
-#      git merge releases/gcc-12.2.0 (& commit)
+#      git checkout mint/gcc-11
+#      git merge releases/gcc-11.3.0 (& commit)
 #      git push
 #
 PATCHES="patches/gcc/${PACKAGENAME}${VERSION}-mint${VERSIONPATCH}.patch"
@@ -403,7 +403,7 @@ esac
 #
 # Note: for ADA, you have to use the same major of gcc as the one we are compiling here.
 # If your hosts compiler is a newer one, set
-# GCC=gcc-12 GXX=g++-12 before running this script
+# GCC=gcc-11 GXX=g++-11 before running this script
 #
 case $GCC in
 	*-[0-9]*)

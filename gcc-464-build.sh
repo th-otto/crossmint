@@ -6,6 +6,12 @@
 
 me="$0"
 
+unset CDPATH
+unset LANG LANGUAGE LC_ALL LC_CTYPE LC_TIME LC_NUMERIC LC_COLLATE LC_MONETARY LC_MESSAGES
+
+scriptdir=${0%/*}
+scriptdir=`cd "${scriptdir}"; pwd`
+
 PACKAGENAME=gcc
 VERSION=-4.6.4
 VERSIONPATCH=-20230210
@@ -60,10 +66,7 @@ esac
 #
 # Where to look for the original source archives
 #
-case $host in
-	mingw* | msys*) here=`pwd` ;;
-	*) here=`pwd` ;;
-esac
+here=`pwd`
 ARCHIVES_DIR="$here"
 
 #
@@ -105,7 +108,12 @@ DIST_DIR="$here/pkgs"
 #
 # Where to look up the source tree.
 #
-srcdir="$here/${PACKAGENAME}${VERSION}"
+srcdir="$HOME/m68k-atari-mint-gcc"
+if test -d "$srcdir"; then
+	touch ".patched-${PACKAGENAME}${VERSION}"
+else
+	srcdir="$here/${PACKAGENAME}${VERSION}"
+fi
 
 #
 # whether to include the fortran backend
@@ -121,6 +129,16 @@ with_D=false
 # whether to include the ada backend
 #
 with_ada=false
+case $host in
+	linux64 | linux32)
+		;;
+	*)
+		# ADA is currently only available for linux
+		with_ada=false
+		# D backend takes too long on github runners
+		with_D=false
+		;;
+esac
 
 
 #
@@ -134,6 +152,7 @@ patches/gcc/${PACKAGENAME}${VERSION}-fastcall.patch
 patches/gmp/gmp-universal.patch
 patches/gmp/gmp-6.2.1-CVE-2021-43618.patch
 patches/gmp/gmp-6.2.1-arm64-invert_limb.patch
+gmp-for-gcc.sh
 "
 
 if test ! -f ".patched-${PACKAGENAME}${VERSION}"; then
@@ -316,6 +335,7 @@ fi
 mpfr_config=
 
 unset GLIBC_SO
+without_zstd=
 
 case $host in
 	macos*)
@@ -340,11 +360,21 @@ case $host in
 		CXXFLAGS_FOR_BUILD="-pipe -O2 -stdlib=libc++ ${ARCHS}"
 		LDFLAGS_FOR_BUILD="-Wl,-headerpad_max_install_names ${ARCHS}"
 		mpfr_config="--with-mpc=${CROSSTOOL_DIR}"
+		# zstd gives link errors on github runners
+		without_zstd=--without-zstd
+		;;
+	linux64)
+		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -include $srcdir/gcc/libcwrap.h"
+		CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
+		export GLIBC_SO="$srcdir/gcc/glibc.so"
 		;;
 esac
 
 export CC="${GCC}"
 export CXX="${GXX}"
+GNATMAKE="gnatmake${adahostsuffix}"
+GNATBIND="gnatbind${adahostsuffix}"
+GNATLINK="gnatlink${adahostsuffix}"
 
 
 fail()
@@ -358,173 +388,7 @@ fail()
 #
 # Now, for darwin, build gmp etc.
 #
-gmp='gmp-6.2.1.tar.bz2'
-mpfr='mpfr-3.1.4.tar.bz2'
-mpc='mpc-1.0.3.tar.gz'
-isl='isl-0.18.tar.bz2'
-base_url='https://gcc.gnu.org/pub/gcc/infrastructure/'
-
-if test $host = macos; then
-	mkdir -p "$CROSSTOOL_DIR"
-
-	if test ! -f "$CROSSTOOL_DIR/lib/libgmp.a"; then
-		cd "$CROSSTOOL_DIR" || exit 1
-		mkdir -p lib include
-		archive=$gmp
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
-		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
-		cd "${package}" || exit 1
-
-		patch -p1 < "$BUILD_DIR/patches/gmp/gmp-universal.patch" || exit 1
-		patch -p1 < "$BUILD_DIR/patches/gmp/gmp-6.2.1-CVE-2021-43618.patch" || exit 1
-		# following patch was taken from SuSE, but failes to compile with clang
-		# patch -p1 < "$BUILD_DIR/patches/gmp/gmp-6.2.1-arm64-invert_limb.patch" || exit 1
-		
-		rm -f "$CROSSTOOL_DIR/include/gmp.h"
-		
-		mkdir -p build-x86_64
-		cd build-x86_64
-		ABI=64 \
-		CFLAGS="-O2 -arch x86_64" \
-		CXXFLAGS="-O2 -arch x86_64" \
-		LDFLAGS="-O2 -arch x86_64" \
-		../configure --host=x86_64-apple-darwin \
-		--with-pic --disable-shared --prefix="$CROSSTOOL_DIR/install-x86_64" || fail "gmp"
-		${MAKE} $JOBS || exit 1
-		${MAKE} install
-		cd "$CROSSTOOL_DIR"
-		sed -e 's/ -arch [a-z0-9_]*//' install-x86_64/include/gmp.h > install-x86_64/include/gmp.h.tmp
-		mv install-x86_64/include/gmp.h.tmp install-x86_64/include/gmp.h
-
-		if test "$BUILD_ARM64" = yes; then
-			cd "${CROSSTOOL_DIR}/${package}"
-			mkdir -p build-arm64
-			cd build-arm64
-			ABI=64 \
-			CFLAGS="-O2 -arch arm64" \
-			CXXFLAGS="-O2 -arch arm64" \
-			LDFLAGS="-O2 -arch arm64" \
-			../configure --host=aarch64-apple-darwin \
-			--with-pic --disable-shared --prefix="$CROSSTOOL_DIR/install-arm64" || fail "gmp"
-			${MAKE} $JOBS || exit 1
-			${MAKE} install
-			cd "$CROSSTOOL_DIR"
-			# lipo -create install-arm64/lib/libgmp.10.dylib -create install-x86_64/lib/libgmp.10.dylib -output lib/libgmp.10.dylib
-			lipo -create install-arm64/lib/libgmp.a -create install-x86_64/lib/libgmp.a -output lib/libgmp.a
-		else
-			cd "$CROSSTOOL_DIR"
-			rm -f install-x86_64/lib/*.la
-			mv install-x86_64/lib/* lib
-		fi
-		
-		mv install-x86_64/include/* include
-		rm -f lib/*.la
-		rm -rf install-*
-	fi
-
-	
-	if test ! -f "$CROSSTOOL_DIR/lib/libmpfr.a"; then
-		cd "$CROSSTOOL_DIR" || exit 1
-		mkdir -p lib include
-		archive=$mpfr
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
-		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
-		cd "${package}" || exit 1
-
-		rm -f include/mpfr.h include/mpf2mpfr.h
-		
-		mkdir -p build-x86_64
-		cd build-x86_64
-		CFLAGS="-O2 -arch x86_64" \
-		CXXFLAGS="-O2 -arch x86_64" \
-		LDFLAGS="-O2 -arch x86_64" \
-		../configure --host=x86_64-apple-darwin \
-		--with-gmp="$CROSSTOOL_DIR" --disable-shared --prefix="$CROSSTOOL_DIR/install-x86_64" || fail "mpfr"
-		${MAKE} $JOBS || exit 1
-		${MAKE} install
-
-		if test "$BUILD_ARM64" = yes; then
-			cd "${CROSSTOOL_DIR}/${package}"
-			mkdir -p build-arm64
-			cd build-arm64
-			CFLAGS="-O2 -arch arm64" \
-			CXXFLAGS="-O2 -arch arm64" \
-			LDFLAGS="-O2 -arch arm64" \
-			../configure --host=aarch64-apple-darwin \
-			--with-gmp="$CROSSTOOL_DIR" --disable-shared --prefix="$CROSSTOOL_DIR/install-arm64" || fail "mpfr"
-			${MAKE} $JOBS || exit 1
-			${MAKE} install
-			cd "$CROSSTOOL_DIR"
-			# lipo -create install-arm64/lib/libmpfr.4.dylib -create install-x86_64/lib/libmpfr.4.dylib -output lib/libmpfr.4.dylib
-			lipo -create install-arm64/lib/libmpfr.a -create install-x86_64/lib/libmpfr.a -output lib/libmpfr.a
-		else
-			cd "$CROSSTOOL_DIR"
-			rm -f install-x86_64/lib/*.la
-			mv install-x86_64/lib/* lib
-		fi
-		
-		mv install-x86_64/include/* include
-		rm -f lib/*.la
-		rm -rf install-*
-	fi
-
-	
-	if test ! -f "$CROSSTOOL_DIR/lib/libmpc.a"; then
-		cd "$CROSSTOOL_DIR" || exit 1
-		mkdir -p lib include
-		archive=$mpc
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
-		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
-		cd "${package}" || exit 1
-
-		rm -f include/mpc.h
-		
-		mkdir -p build-x86_64
-		cd build-x86_64
-		CFLAGS="-O2 -arch x86_64" \
-		CXXFLAGS="-O2 -arch x86_64" \
-		LDFLAGS="-O2 -arch x86_64" \
-		../configure --host=x86_64-apple-darwin \
-		--with-gmp="$CROSSTOOL_DIR" --disable-shared --prefix="$CROSSTOOL_DIR/install-x86_64" || fail "mpc"
-		${MAKE} $JOBS || exit 1
-		${MAKE} install
-		
-		if test "$BUILD_ARM64" = yes; then
-			cd "${CROSSTOOL_DIR}/${package}"
-			mkdir -p build-arm64
-			cd build-arm64
-			CFLAGS="-O2 -arch arm64" \
-			CXXFLAGS="-O2 -arch arm64" \
-			LDFLAGS="-O2 -arch arm64" \
-			../configure --host=aarch64-apple-darwin \
-			--with-gmp="$CROSSTOOL_DIR" --disable-shared --prefix="$CROSSTOOL_DIR/install-arm64" || fail "mpc"
-			${MAKE} $JOBS || exit 1
-			${MAKE} install
-			cd "$CROSSTOOL_DIR"
-			# lipo -create install-arm64/lib/libmpc.3.dylib -create install-x86_64/lib/libmpc.3.dylib -output lib/libmpc.3.dylib
-			lipo -create install-arm64/lib/libmpc.a -create install-x86_64/lib/libmpc.a -output lib/libmpc.a
-		else
-			cd "$CROSSTOOL_DIR"
-			rm -f install-x86_64/lib/*.la
-			mv install-x86_64/lib/* lib
-		fi
-		
-		mv install-x86_64/include/* include
-		rm -f lib/*.la
-		rm -rf install-*
-	fi
-fi
-
-
+. ${scriptdir}/gmp-for-gcc.sh
 
 cd "$MINT_BUILD_DIR"
 
@@ -543,6 +407,9 @@ $srcdir/configure \
 	CXXFLAGS_FOR_TARGET="$CXXFLAGS_FOR_TARGET" \
 	LDFLAGS_FOR_BUILD="$LDFLAGS_FOR_BUILD" \
 	LDFLAGS="$LDFLAGS_FOR_BUILD" \
+	GNATMAKE_FOR_HOST="${GNATMAKE}" \
+	GNATBIND_FOR_HOST="${GNATBIND}" \
+	GNATLINK_FOR_HOST="${GNATLINK}" \
 	--with-pkgversion="$REVISION" \
 	--disable-libvtv \
 	--disable-libmpx \
@@ -552,6 +419,7 @@ $srcdir/configure \
 	--with-default-libstdcxx-abi=gcc4-compatible \
 	--with-gcc --with-gnu-as --with-gnu-ld \
 	--with-system-zlib \
+	--without-stage1-ldflags \
 	--disable-libgomp \
 	--without-newlib \
 	--disable-libstdcxx-pch \
@@ -597,10 +465,10 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 	
 	cd "${INSTALL_DIR}/${PREFIX}/${TARGET}/bin"
 	
-	for i in c++ cpp g++ gcc gcov gfortran gdc; do
-		if test -x ../../bin/${TARGET}-$i; then
-			rm -f ${i} ${i}${BUILD_EXEEXT}
-			$LN_S ../../bin/${TARGET}-$i${BUILD_EXEEXT} $i
+	for tool in c++ cpp g++ gcc gcov gfortran gdc; do
+		if test -x ../../bin/${TARGET}-${tool}; then
+			rm -f ${tool} ${tool}${BUILD_EXEEXT}
+			$LN_S ../../bin/${TARGET}-${tool}${BUILD_EXEEXT} ${tool}
 		fi
 	done
 	
@@ -678,7 +546,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		*) LTO_PLUGIN=liblto_plugin.so.0.0.0; MY_LTO_PLUGIN=liblto_plugin_mintelf.so.${gcc_dir_version} ;;
 	esac
 	
-	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1}${BUILD_EXEEXT} \
+	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1,g++-mapper-server}${BUILD_EXEEXT} \
 		${gccsubdir#/}/${LTO_PLUGIN} \
 		${gccsubdir#/}/plugin/gengtype${BUILD_EXEEXT} \
 		${gccsubdir#/}/install-tools/fixincl${BUILD_EXEEXT}; do
@@ -707,6 +575,9 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 			*) echo "removing fixed include file $i"; rm -f $i ;;
 			esac
 		done
+		for i in `find . -type l`; do
+			rm -fv $i
+		done
 		for i in `find . -depth -type d`; do
 			test "$i" = "." || rmdir "$i"
 		done
@@ -728,6 +599,8 @@ rm -rf ${PREFIX#/}/share/gcc*/python
 #
 if $with_fortran; then
 	fortran=`find ${gccsubdir#/} -name finclude`
+	fortran="$fortran "${PREFIX#/}/bin/*gfortran*
+	fortran="$fortran "${PREFIX#/}/${TARGET}/bin/*gfortran*
 	fortran="$fortran "${gccsubdir#/}/f951
 	fortran="$fortran "`find ${gccsubdir#/} -name libcaf_single.a`
 	fortran="$fortran "`find ${gccsubdir#/} -name "*gfortran*"`

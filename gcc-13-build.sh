@@ -13,8 +13,8 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
-VERSION=-12.2.0
-VERSIONPATCH=-20230210
+VERSION=-13.1.0
+VERSIONPATCH=-20230522
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -55,13 +55,14 @@ TAR=${TAR-tar}
 TAR_OPTS=${TAR_OPTS---owner=0 --group=0}
 SED_INPLACE=-i
 case `uname -s` in
-	MINGW64*) host=mingw64; MINGW_PREFIX=/mingw64; ;;
-	MINGW32*) host=mingw32; MINGW_PREFIX=/mingw32; ;;
-	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; MINGW_PREFIX=/$host ;;
-	MSYS*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; MINGW_PREFIX=/$host ;;
-	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi ;;
-	Darwin*) host=macos; STRIP=strip; TAR_OPTS=; SED_INPLACE="-i ''" ;;
-	*) host=linux64
+	MINGW64*) host=mingw64; PREFIX=/mingw64; ;;
+	MINGW32*) host=mingw32; PREFIX=/mingw32; ;;
+	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; PREFIX=/$host ;;
+	MSYS*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; PREFIX=/$host ;;
+	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi; PREFIX=/usr ;;
+	Darwin*) host=macos; STRIP=strip; TAR_OPTS=; SED_INPLACE="-i ''"; PREFIX=/opt/cross-mint ;;
+	*) PREFIX=/usr
+	   host=linux64
 	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then
 	      host=linux32
 	      PKG_DIR+="-32bit"
@@ -73,11 +74,6 @@ case `uname -s` in
 	      build_time_tools=--with-build-time-tools=${PKG_DIR}/usr/${TARGET}/bin
 	   fi
 	   ;;
-esac
-case $host in
-	mingw* | msys*) PREFIX=${MINGW_PREFIX} ;;
-	macos*) PREFIX=/opt/cross-mint ;;
-	*) PREFIX=/usr ;;
 esac
 
 #
@@ -135,6 +131,11 @@ with_fortran=true
 with_D=true
 
 #
+# whether to include the modula-2 backend
+#
+with_m2=true
+
+#
 # whether to include the ada backend
 #
 with_ada=true
@@ -146,6 +147,8 @@ case $host in
 		with_ada=false
 		# D backend takes too long on github runners
 		with_D=false
+		# m2 backend needs pthread.h
+		with_m2=false
 		;;
 esac
 
@@ -153,8 +156,8 @@ esac
 #
 # this patch can be recreated by
 # - cloning https://github.com/th-otto/m68k-atari-mint-gcc.git
-# - checking out the mint/gcc-12 branch
-# - running git diff releases/gcc-12.2.0 HEAD
+# - checking out the mint/gcc-13 branch
+# - running git diff releases/gcc-13.1.0 HEAD
 #
 # when a new GCC is released:
 #   cd <directory where m68k-atari-mint-gcc.git> has been cloned
@@ -166,8 +169,8 @@ esac
 #      git fetch --all
 #      git push --tags
 #   merge new release into our branch:
-#      git checkout mint/gcc-12
-#      git merge releases/gcc-12.2.0 (& commit)
+#      git checkout mint/gcc-13
+#      git merge releases/gcc-13.2.0 (& commit)
 #      git push
 #
 PATCHES="patches/gcc/${PACKAGENAME}${VERSION}-mint${VERSIONPATCH}.patch"
@@ -300,6 +303,7 @@ languages=c,c++
 $with_fortran && languages="$languages,fortran"
 $with_ada && languages="$languages,ada"
 $with_D && { languages="$languages,d"; enable_libphobos=; } # --enable-libphobos does not work because of missing swapcontext() in mintlib
+$with_m2 && languages="$languages,m2"
 ranlib=ranlib
 STRIP=${STRIP-strip -p}
 
@@ -393,17 +397,11 @@ case $host in
 		;;
 esac
 
-case $BUILD in
-	i686-*-msys* | x86_64-*-msys*)
-		# we use in-tree versions of those libraries now
-		# mpfr_config="--with-mpc=${MINGW_PREFIX} --with-gmp=${MINGW_PREFIX} --with-mpfr=${MINGW_PREFIX}"
-		;;
-esac
 
 #
 # Note: for ADA, you have to use the same major of gcc as the one we are compiling here.
 # If your hosts compiler is a newer one, set
-# GCC=gcc-12 GXX=g++-12 before running this script
+# GCC=gcc-13 GXX=g++-13 before running this script
 #
 case $GCC in
 	*-[0-9]*)
@@ -558,7 +556,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		rm -f ${TARGET}-c++${BUILD_EXEEXT} ${TARGET}-c++
 		$LN_S ${TARGET}-g++${BUILD_EXEEXT} ${TARGET}-c++${BUILD_EXEEXT}
 	fi
-	for tool in gcc gfortran gdc gccgo go gofmt \
+	for tool in gcc gfortran gdc gccgo go gofmt gm2 \
 	            gnat gnatbind gnatchop gnatclean gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref; do
 		if test -x ${TARGET}-${tool} && test ! -h ${TARGET}-${tool}; then
 			rm -f ${TARGET}-${tool}-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-${tool}-${BASE_VER}
@@ -604,7 +602,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 #
 # move compiler dependant libraries to the gcc subdirectory
 #
-	pushd ${INSTALL_DIR}${PREFIX}/${TARGET}/lib || exit 1
+	cd ${INSTALL_DIR}${PREFIX}/${TARGET}/lib || exit 1
 	libs=`find . -name "lib*.a" ! -path "*/gcc/*"`
 	$TAR -c $libs | $TAR -x -C ${INSTALL_DIR}${gccsubdir}
 	rm -f $libs
@@ -616,7 +614,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 	rmdir m*/*/* || :
 	rmdir m*/* || :
 	rmdir m* || :
-	popd
+	cd "${INSTALL_DIR}"
 
 	case $host in
 		cygwin*) LTO_PLUGIN=cyglto_plugin-0.dll; MY_LTO_PLUGIN=cyglto_plugin_mintelf-${gcc_dir_version}.dll ;;
@@ -625,7 +623,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		*) LTO_PLUGIN=liblto_plugin.so.0.0.0; MY_LTO_PLUGIN=liblto_plugin_mintelf.so.${gcc_dir_version} ;;
 	esac
 	
-	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1,g++-mapper-server}${BUILD_EXEEXT} \
+	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1,cc1gm2,g++-mapper-server}${BUILD_EXEEXT} \
 		${gccsubdir#/}/${LTO_PLUGIN} \
 		${gccsubdir#/}/plugin/gengtype${BUILD_EXEEXT} \
 		${gccsubdir#/}/install-tools/fixincl${BUILD_EXEEXT}; do
@@ -727,6 +725,19 @@ if $with_ada; then
 	ada="$ada "${PREFIX#/}/bin/${TARGET}-gnat*
 	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-ada-${host}.tar.xz $ada || exit 1
 	rm -rf $ada
+fi
+
+#
+# create a separate archive for the modula-2 backend
+#
+if $with_m2; then
+	m2=
+	test -d ${gccsubdir#/}/m2 && m2="$m2 "${gccsubdir#/}/m2
+	m2="$m2 "`find ${gccsubdir#/} -name "libm2*"`
+	m2="$m2 "`find ${gccsubdir#/} -name "cc1gm2*"`
+	m2="$m2 "${PREFIX#/}/bin/${TARGET}-gm2*
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-m2-${host}.tar.xz $m2 || exit 1
+	rm -rf $m2
 fi
 
 #

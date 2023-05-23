@@ -20,15 +20,21 @@ TAR=${TAR-tar}
 TAR_OPTS=${TAR_OPTS---owner=0 --group=0}
 GCC=${GCC-gcc}
 GXX=${GXX-g++}
-case `uname -s` in
+host="`uname -s`"
+case "${host}" in
 	MINGW64*) host=mingw64; MINGW_PREFIX=/mingw64; ;;
 	MINGW32*) host=mingw32; MINGW_PREFIX=/mingw32; ;;
 	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; MINGW_PREFIX=/$host ;;
 	MSYS*) host=msys ;;
 	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi ;;
 	Darwin*) host=macos; STRIP=strip; TAR_OPTS= ;;
-	*) host=linux64
+	Linux) host=linux64
 	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=linux32; fi
+	   ;;
+	*)
+	   echo "unsupported host os: ${host}" >&2
+	   uname -a >&2
+	   exit 1
 	   ;;
 esac
 case $host in
@@ -43,7 +49,7 @@ sysroot=${prefix}/${TARGET}/sys-root
 #
 case $TARGET in
 	m68k-amigaos*)
-		prefix=/opt/amiga/m68k-amigaos
+		prefix=/opt/amiga
 		sysroot=
 		PATH="/opt/amiga/bin:$PATH"
 		TARGET_PREFIX=${prefix}
@@ -167,7 +173,11 @@ for a in "" -1.16 -1.15 -1.14 -1.13 -1.12 -1.11 -1.10; do
 	test "$host" = "macos" && BUILD=`/opt/local/share/automake${a}/config.guess 2>/dev/null`
 	test "$BUILD" != "" && break
 done
-test "$BUILD" = "" && BUILD=`$srcdir/config.guess`
+if test "$BUILD" = ""; then
+	if test -f "$srcdir/config.guess"; then
+		BUILD=`$srcdir/config.guess`
+	fi
+fi
 
 LTO_CFLAGS=
 ranlib=ranlib
@@ -191,7 +201,7 @@ if test ! -f "${prefix}/bin/${TARGET}-${ranlib}"; then
 		echo "fetching binutils"
 		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.39-${TARGET##*-}-20230206-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
 		echo "fetching gcc"
-		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/gcc-7/gcc-7.5.0-${TARGET##*-}-20230206-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
+		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/gcc-7/gcc-7.5.0-${TARGET##*-}-20230210-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
 		if test "${PACKAGENAME}" != mintbin; then
 			echo "fetching mintbin"
 			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/mintbin/mintbin-0.3-${TARGET##*-}-20230206-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
@@ -340,7 +350,7 @@ gzip_docs()
 	cd "${THISPKG_DIR}${sysroot}${TARGET_PREFIX}" || exit 1
 	rm -f share/info/dir
 	if test -d share/man; then
-		find share/man -type f | while read f; do
+		find share/man \( -type f -o -type l \) | while read f; do
 			case $f in
 			*.gz) ;;
 			*)
@@ -421,8 +431,8 @@ move_pkgconfig_libs_private()
 	local privlib
 	local modified
 	# If a *.pc has a Libs.private entry,
-	libs=" "`sed -n 's/Libs: *\(.*\)$/\1/p' "$file"`" "
-	libs_priv=" "`sed -n 's/Libs\.private: *\(.*\)$/\1/p' "$file"`" "
+	libs=" "`sed -n 's,Libs: *\(.*\)$,\1,p' "$file"`" "
+	libs_priv=" "`sed -n 's,Libs\.private: *\(.*\)$,\1,p' "$file"`" "
 	modified=false;
 	for lib in $libs_priv; do
 		case $libs in
@@ -431,7 +441,7 @@ move_pkgconfig_libs_private()
 		esac
 	done
 	if $modified; then
-		sed -e 's/Libs: .*$/'"Libs: $libs"'/' "$file" > "$file.tmp"
+		sed -e 's,Libs: .*$,'"Libs: $libs"',' "$file" > "$file.tmp"
 		mv "$file.tmp" "$file"
 	fi
 }
@@ -484,6 +494,7 @@ copy_pkg_configs()
 			             s,=[ ]*'$prefix',=${prefix},
 			             s,-L'$TARGET_LIBDIR',-L${libdir},g
 			             s,-L${sharedlibdir} ,,g
+			             s,-L${exec_prefix}/lib,-L${libdir},g
 			             s,-L${libdir} ,,g
 			             s,-L${libdir}$,,
 			             s,-L'${TARGET_BINDIR}'[ ]*,,g
@@ -491,7 +502,8 @@ copy_pkg_configs()
 			             s,-I'${sysroot}${TARGET_PREFIX}/include',-I${includedir},g' $dst
 				includedir=`sed -n 's/^[ ]*includedir[ ]*=[ ]*\([^ ]*\)/\1/p' $dst`
 				if test "$includedir" = '/usr/include' -o "$includedir" = '${prefix}/include' -o "$includedir" = '${prefix}/sys-include'; then
-					sed -i 's,-I${includedir} ,,g
+					sed -i 's,-I${prefix}/include,-I${includedir},g
+					     s,-I${includedir} ,,g
 					     s,-I${includedir}$,,' $dst
 				fi
 			fi
@@ -503,6 +515,7 @@ copy_pkg_configs()
 			         s,[ ]*=[ ]*'$prefix',=${prefix},
 			         s,-L'$TARGET_LIBDIR',-L${libdir},g
 		             s,-L${sharedlibdir} ,,g
+		             s,-L${exec_prefix}/lib,-L${libdir},g
 			         s,-L${libdir} ,,g
 			         s,-L${libdir}$,,
 		             s,-L'${TARGET_BINDIR}'[ ]*,,g
@@ -510,7 +523,8 @@ copy_pkg_configs()
 		             s,-I'${sysroot}${TARGET_PREFIX}/include',-I${includedir},g' $i > $i.tmp
 			includedir=`sed -n 's/^[ ]*includedir[ ]*=[ ]*\([^ ]*\)/\1/p' $i.tmp`
 			if test "$includedir" = '/usr/include' -o "$includedir" = '${prefix}/include' -o "$includedir" = '${prefix}/sys-include'; then
-				sed -i 's,-I${includedir} ,,g
+				sed -i 's,-I${prefix}/include,-I${includedir},g
+				     s,-I${includedir} ,,g
 				     s,-I${includedir}$,,' $i.tmp
 			fi
 			move_pkgconfig_libs_private "$i.tmp"
@@ -693,6 +707,7 @@ gl_cv_func_vsnprintf_usable=yes
 gl_cv_func_working_utimes=yes
 gl_cv_struct_dirent_d_ino=yes
 gl_cv_func_wcwidth_works=yes
+gl_cv_func_printf_directive_n=yes
 EOF
 }
 
