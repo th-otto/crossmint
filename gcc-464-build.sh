@@ -14,14 +14,14 @@ scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
 VERSION=-4.6.4
-VERSIONPATCH=-20230210
+VERSIONPATCH=-20230719
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
 # For which target we build-
-# should be m68k-atari-mint
+# should be either m68k-atari-mint or m68k-atari-mintelf
 #
-TARGET=m68k-atari-mint
+TARGET=${1:-m68k-atari-mint}
 
 #
 # The hosts compiler.
@@ -37,6 +37,14 @@ GCC=${GCC-gcc}
 GXX=${GXX-g++}
 
 #
+# Where to put the executables for later use.
+# This should be the same as the one configured
+# in the binutils script
+#
+here=`pwd`
+PKG_DIR="$here/binary7-package"
+
+#
 # The prefix where the executables should
 # be installed later. If installed properly,
 # this actually does not matter much, since
@@ -47,26 +55,30 @@ TAR=${TAR-tar}
 TAR_OPTS=${TAR_OPTS---owner=0 --group=0}
 SED_INPLACE=-i
 case `uname -s` in
-	MINGW64*) host=mingw64; MINGW_PREFIX=/mingw64; ;;
-	MINGW32*) host=mingw32; MINGW_PREFIX=/mingw32; ;;
-	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; MINGW_PREFIX=/$host ;;
-	MSYS*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; MINGW_PREFIX=/$host ;;
-	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi ;;
-	Darwin*) host=macos; STRIP=strip; TAR_OPTS=; SED_INPLACE="-i ''" ;;
-	*) host=linux64
-	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=linux32; fi
+	MINGW64*) host=mingw64; PREFIX=/mingw64; ;;
+	MINGW32*) host=mingw32; PREFIX=/mingw32; ;;
+	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; PREFIX=/$host ;;
+	MSYS*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; PREFIX=/$host ;;
+	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi; PREFIX=/usr ;;
+	Darwin*) host=macos; STRIP=strip; TAR_OPTS=; SED_INPLACE="-i ''"; PREFIX=/opt/cross-mint ;;
+	*) PREFIX=/usr
+	   host=linux64
+	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then
+	      host=linux32
+	      PKG_DIR+="-32bit"
+	      export PATH=${PKG_DIR}/usr/bin:$PATH
+          #
+          # This is needed because otherwise configure scripts
+          # will pick /usr/${TARGET}/bin/$tool which will be a 64bit version
+          #
+	      build_time_tools=--with-build-time-tools=${PKG_DIR}/usr/${TARGET}/bin
+	   fi
 	   ;;
-esac
-case $host in
-	mingw* | msys*) PREFIX=${MINGW_PREFIX} ;;
-	macos*) PREFIX=/opt/cross-mint ;;
-	*) PREFIX=/usr ;;
 esac
 
 #
 # Where to look for the original source archives
 #
-here=`pwd`
 ARCHIVES_DIR="$here"
 
 #
@@ -91,14 +103,7 @@ BUILD_DIR="$here"
 # be outside the gcc source directory, ie. it must
 # not even be a subdirectory of it
 #
-MINT_BUILD_DIR="$BUILD_DIR/gcc-build4"
-
-#
-# Where to put the executables for later use.
-# This should be the same as the one configured
-# in the binutils script
-#
-PKG_DIR="$here/binary-package"
+MINT_BUILD_DIR="$BUILD_DIR/gcc-build"
 
 #
 # Where to put the binary packages
@@ -126,6 +131,11 @@ with_fortran=false
 with_D=false
 
 #
+# whether to include the modula-2 backend
+#
+with_m2=false
+
+#
 # whether to include the ada backend
 #
 with_ada=false
@@ -137,6 +147,8 @@ case $host in
 		with_ada=false
 		# D backend takes too long on github runners
 		with_D=false
+		# m2 backend needs pthread.h
+		with_m2=false
 		;;
 esac
 
@@ -187,6 +199,13 @@ if test ! -f ".patched-${PACKAGENAME}${VERSION}"; then
 	  cd "$BUILD_DIR"
 	done
 	touch ".patched-${PACKAGENAME}${VERSION}"
+else
+	for f in $PATCHES; do
+	  if ! test -f "$f"; then
+	    echo "missing patch $f" >&2
+	    exit 1
+	  fi
+	done
 fi
 
 if test ! -d "$srcdir"; then
@@ -254,7 +273,7 @@ for a in "" -1.16 -1.15 -1.14 -1.13 -1.12 -1.11 -1.10; do
 done
 test "$BUILD" = "" && BUILD=`$srcdir/config.guess`
 case $BUILD in
-	x86_64-pc-mingw32) BUILD=x86_64-pc-mingw32 ;;
+	x86_64-pc-mingw32) BUILD=x86_64-pc-msys ;;
 	i686-pc-mingw32) BUILD=i686-pc-msys ;;
 esac
 
@@ -277,6 +296,7 @@ languages=c,c++
 $with_fortran && languages="$languages,fortran"
 $with_ada && languages="$languages,ada"
 $with_D && { languages="$languages,d"; enable_libphobos=; } # --enable-libphobos does not work because of missing swapcontext() in mintlib
+$with_m2 && languages="$languages,m2"
 ranlib=ranlib
 STRIP=${STRIP-strip -p}
 
@@ -370,6 +390,44 @@ case $host in
 		;;
 esac
 
+
+#
+# Note: for ADA, you have to use the same major of gcc as the one we are compiling here.
+# If your hosts compiler is a newer one, set
+# GCC=gcc-13 GXX=g++-13 before running this script
+#
+case $GCC in
+	*-[0-9]*)
+		adahostsuffix=-"${GCC##*-}"
+		;;
+	*)
+		adahostsuffix=
+		;;
+esac
+if $with_ada; then
+# Using the host gnatmake like
+#   CC="gcc%%{hostsuffix}" GNATBIND="gnatbind%%{hostsuffix}"
+#   GNATMAKE="gnatmake%%{hostsuffix}"
+# doesn't work due to PR33857, so an un-suffixed gnatmake has to be
+# available
+	if test ! -x /usr/bin/gnatmake${adahostsuffix}; then
+		echo "need gnatmake${adahostsuffix} to build ada" >&2
+		exit 1
+	fi
+	mkdir -p host-tools/bin
+	$LN_S -f /usr/bin/gnatmake${adahostsuffix} host-tools/bin/gnatmake
+	$LN_S -f /usr/bin/gnatlink${adahostsuffix} host-tools/bin/gnatlink
+	$LN_S -f /usr/bin/gnatbind${adahostsuffix} host-tools/bin/gnatbind
+	$LN_S -f /usr/bin/gnatls${adahostsuffix} host-tools/bin/gnatls
+	$LN_S -f /usr/bin/gcc${adahostsuffix} host-tools/bin/gcc
+	if test $host = linux64; then
+		$LN_S -f /usr/lib64 host-tools/lib64
+	else
+		$LN_S -f /usr/lib host-tools/lib
+	fi
+	export PATH="`pwd`/host-tools/bin:$PATH"
+fi
+
 export CC="${GCC}"
 export CXX="${GXX}"
 GNATMAKE="gnatmake${adahostsuffix}"
@@ -431,9 +489,11 @@ $srcdir/configure \
 	$enable_plugin \
 	--disable-decimal-float \
 	--disable-nls \
+	$without_zstd \
 	--with-libiconv-prefix="${PREFIX}" \
 	--with-libintl-prefix="${PREFIX}" \
 	$mpfr_config \
+	$build_time_tools \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root" \
 	--enable-languages="$languages" || fail "gcc"
 
@@ -486,13 +546,20 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		rm -f ${TARGET}-c++${BUILD_EXEEXT} ${TARGET}-c++
 		$LN_S ${TARGET}-g++${BUILD_EXEEXT} ${TARGET}-c++${BUILD_EXEEXT}
 	fi
-	if test -x ${TARGET}-gcc && test ! -h ${TARGET}-gcc; then
-		rm -f ${TARGET}-gcc-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-gcc-${BASE_VER}
-		rm -f ${TARGET}-gcc-${gcc_major_version}${BUILD_EXEEXT} ${TARGET}-gcc-${gcc_major_version}
-		mv ${TARGET}-gcc${BUILD_EXEEXT} ${TARGET}-gcc-${BASE_VER}${BUILD_EXEEXT}
-		$LN_S ${TARGET}-gcc-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-gcc${BUILD_EXEEXT}
-		$LN_S ${TARGET}-gcc-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-gcc-${gcc_major_version}${BUILD_EXEEXT}
-	fi
+	for tool in gcc gfortran gdc gccgo go gofmt gm2 \
+	            gnat gnatbind gnatchop gnatclean gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref; do
+		if test -x ${TARGET}-${tool} && test ! -h ${TARGET}-${tool}; then
+			rm -f ${TARGET}-${tool}-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-${tool}-${BASE_VER}
+			rm -f ${TARGET}-${tool}-${gcc_major_version}${BUILD_EXEEXT} ${TARGET}-${tool}-${gcc_major_version}
+			mv ${TARGET}-${tool}${BUILD_EXEEXT} ${TARGET}-${tool}-${BASE_VER}${BUILD_EXEEXT}
+			$LN_S ${TARGET}-${tool}-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-${tool}${BUILD_EXEEXT}
+			if test ${BASE_VER} != ${gcc_major_version}; then
+				rm -f ${TARGET}-${tool}-${gcc_major_version}${BUILD_EXEEXT} ${TARGET}-${tool}-${gcc_major_version}
+				rm -f ${tool}-${gcc_major_version}${BUILD_EXEEXT} ${tool}-${gcc_major_version}${BUILD_EXEEXT}
+				$LN_S ${TARGET}-${tool}-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-${tool}-${gcc_major_version}${BUILD_EXEEXT}
+			fi
+		fi
+	done
 	if test -x ${TARGET}-cpp && test ! -h ${TARGET}-cpp; then
 		rm -f ${TARGET}-cpp-${BASE_VER}${BUILD_EXEEXT} ${TARGET}-cpp-${BASE_VER}
 		mv ${TARGET}-cpp${BUILD_EXEEXT} ${TARGET}-cpp-${BASE_VER}${BUILD_EXEEXT}
@@ -525,7 +592,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 #
 # move compiler dependant libraries to the gcc subdirectory
 #
-	pushd ${INSTALL_DIR}${PREFIX}/${TARGET}/lib || exit 1
+	cd ${INSTALL_DIR}${PREFIX}/${TARGET}/lib || exit 1
 	libs=`find . -name "lib*.a" ! -path "*/gcc/*"`
 	$TAR -c $libs | $TAR -x -C ${INSTALL_DIR}${gccsubdir}
 	rm -f $libs
@@ -537,18 +604,19 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 	rmdir m*/*/* || :
 	rmdir m*/* || :
 	rmdir m* || :
-	popd
+	cd "${INSTALL_DIR}"
 
 	case $host in
-		cygwin*) LTO_PLUGIN=cyglto_plugin-0.dll; MY_LTO_PLUGIN=cyglto_plugin_mintelf-${gcc_dir_version}.dll ;;
-		mingw* | msys*) LTO_PLUGIN=liblto_plugin-0.dll; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}.dll ;;
-		macos*) LTO_PLUGIN=liblto_plugin.dylib; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}.dylib ;;
-		*) LTO_PLUGIN=liblto_plugin.so.0.0.0; MY_LTO_PLUGIN=liblto_plugin_mintelf.so.${gcc_dir_version} ;;
+		cygwin*) soext=.dll; LTO_PLUGIN=cyglto_plugin-0${soext}; MY_LTO_PLUGIN=cyglto_plugin_mintelf-${gcc_dir_version}${soext} ;;
+		mingw* | msys*) soext=.dll; LTO_PLUGIN=liblto_plugin-0${soext}; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}${soext} ;;
+		macos*) soext=.dylib; LTO_PLUGIN=liblto_plugin${soext}; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}${soext} ;;
+		*) soext=.so; LTO_PLUGIN=liblto_plugin${soext}.0.0.0; MY_LTO_PLUGIN=liblto_plugin_mintelf${soext}.${gcc_dir_version} ;;
 	esac
 	
-	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1,g++-mapper-server}${BUILD_EXEEXT} \
+	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1,cc1gm2,g++-mapper-server}${BUILD_EXEEXT} \
 		${gccsubdir#/}/${LTO_PLUGIN} \
 		${gccsubdir#/}/plugin/gengtype${BUILD_EXEEXT} \
+		${gccsubdir#/}/plugin/m2rte${soext} \
 		${gccsubdir#/}/install-tools/fixincl${BUILD_EXEEXT}; do
 		test -f "$f" && ${STRIP} "$f"
 	done
@@ -582,6 +650,22 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 			test "$i" = "." || rmdir "$i"
 		done
 	}
+
+	# these are currently identically compiled 2 times; FIXME
+	# this only happens if gcc was patched to put the m68000 libraries also
+	# in a sub-directory of /usr/lib
+	m68000=`"${INSTALL_DIR}/${PREFIX}/bin/${TARGET}-gcc" -m68000 -print-multi-directory`
+	if test "$m68000" = "m68000"; then
+		for dir in . mshort mfastcall mfastcall/mshort; do
+			for f in libgcov.a libgcc.a libcaf_single.a; do
+				rm -f ${BUILD_LIBDIR#/}/gcc/${TARGET}/$dir/$f
+			done
+		done
+		for dir in mfastcall/mshort mfastcall mshort; do
+			rmdir ${BUILD_LIBDIR#/}/gcc/${TARGET}/$dir 2>/dev/null
+		done
+	fi
+
 done
 
 cd "${THISPKG_DIR}" || exit 1
@@ -606,6 +690,46 @@ if $with_fortran; then
 	fortran="$fortran "`find ${gccsubdir#/} -name "*gfortran*"`
 	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-fortran-${host}.tar.xz $fortran || exit 1
 	rm -rf $fortran
+fi
+
+#
+# create a separate archive for the D backend
+#
+if $with_D; then
+	D=
+	test -d ${gccsubdir#/}include/d && D="$D "${gccsubdir#/}include/d
+	D="$D "`find ${gccsubdir#/} -name "libgdruntim*"`
+	D="$D "`find ${gccsubdir#/} -name "libgphobos*"`
+	D="$D "`find ${gccsubdir#/} -name "d21*"`
+	D="$D "${PREFIX#/}/bin/*-gdc*
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-d-${host}.tar.xz $D || exit 1
+	rm -rf $D
+fi
+
+#
+# create a separate archive for the ada backend
+#
+if $with_ada; then
+	ada=`find ${gccsubdir#/} -name adainclude`
+	ada="$ada "`find ${gccsubdir#/} -name adalib`
+	ada="$ada "`find ${gccsubdir#/} -name "gnat1*"`
+	ada="$ada "${PREFIX#/}/bin/${TARGET}-gnat*
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-ada-${host}.tar.xz $ada || exit 1
+	rm -rf $ada
+fi
+
+#
+# create a separate archive for the modula-2 backend
+#
+if $with_m2; then
+	m2=
+	test -d ${gccsubdir#/}/m2 && m2="$m2 "${gccsubdir#/}/m2
+	m2="$m2 "`find ${gccsubdir#/} -name "libm2*"`
+	m2="$m2 "`find ${gccsubdir#/} -name "cc1gm2*"`
+	test -f ${gccsubdir#/}/plugin/m2rte${soext} && m2="$m2 ${gccsubdir#/}/plugin/m2rte${soext}"
+	m2="$m2 "${PREFIX#/}/bin/${TARGET}-gm2*
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-m2-${host}.tar.xz $m2 || exit 1
+	rm -rf $m2
 fi
 
 #

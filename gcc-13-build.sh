@@ -13,8 +13,8 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
-VERSION=-13.1.0
-VERSIONPATCH=-20230522
+VERSION=-13.2.0
+VERSIONPATCH=-20230801
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -157,7 +157,7 @@ esac
 # this patch can be recreated by
 # - cloning https://github.com/th-otto/m68k-atari-mint-gcc.git
 # - checking out the mint/gcc-13 branch
-# - running git diff releases/gcc-13.1.0 HEAD
+# - running git diff releases/gcc-13.2.0 HEAD
 #
 # when a new GCC is released:
 #   cd <directory where m68k-atari-mint-gcc.git> has been cloned
@@ -213,6 +213,13 @@ if test ! -f ".patched-${PACKAGENAME}${VERSION}"; then
 	  cd "$BUILD_DIR"
 	done
 	touch ".patched-${PACKAGENAME}${VERSION}"
+else
+	for f in $PATCHES; do
+	  if ! test -f "$f"; then
+	    echo "missing patch $f" >&2
+	    exit 1
+	  fi
+	done
 fi
 
 if test ! -d "$srcdir"; then
@@ -404,11 +411,18 @@ esac
 # GCC=gcc-13 GXX=g++-13 before running this script
 #
 case $GCC in
+	*-[0-9]*-m32)
+		adahostsuffix=-"${GCC%-*}"
+		adahostsuffix=-"${adahostsuffix##*-}"
+		m32=" -m32"
+		;;
 	*-[0-9]*)
 		adahostsuffix=-"${GCC##*-}"
+		m32=""
 		;;
 	*)
 		adahostsuffix=
+		m32=""
 		;;
 esac
 if $with_ada; then
@@ -422,11 +436,12 @@ if $with_ada; then
 		exit 1
 	fi
 	mkdir -p host-tools/bin
-	$LN_S -f /usr/bin/gnatmake${adahostsuffix} host-tools/bin/gnatmake
-	$LN_S -f /usr/bin/gnatlink${adahostsuffix} host-tools/bin/gnatlink
-	$LN_S -f /usr/bin/gnatbind${adahostsuffix} host-tools/bin/gnatbind
-	$LN_S -f /usr/bin/gnatls${adahostsuffix} host-tools/bin/gnatls
-	$LN_S -f /usr/bin/gcc${adahostsuffix} host-tools/bin/gcc
+	echo "exec /usr/bin/gnatmake${adahostsuffix}${m32} "'"$@"' > host-tools/bin/gnatmake
+	echo "exec /usr/bin/gnatlink${adahostsuffix}${m32} "'"$@"' > host-tools/bin/gnatlink
+	echo "exec /usr/bin/gnatbind${adahostsuffix}${m32} "'"$@"' > host-tools/bin/gnatbind
+	echo "exec /usr/bin/gnatls${adahostsuffix} "'"$@"' > host-tools/bin/gnatls
+	echo "exec /usr/bin/gcc${adahostsuffix}${m32} "'"$@"' > host-tools/bin/gcc
+	chmod 755 host-tools/bin/*
 	if test $host = linux64; then
 		$LN_S -f /usr/lib64 host-tools/lib64
 	else
@@ -437,9 +452,9 @@ fi
 
 export CC="${GCC}"
 export CXX="${GXX}"
-GNATMAKE="gnatmake${adahostsuffix}"
-GNATBIND="gnatbind${adahostsuffix}"
-GNATLINK="gnatlink${adahostsuffix}"
+GNATMAKE="gnatmake${adahostsuffix}${m32}"
+GNATBIND="gnatbind${adahostsuffix}${m32}"
+GNATLINK="gnatlink${adahostsuffix}${m32}"
 
 
 fail()
@@ -617,15 +632,16 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 	cd "${INSTALL_DIR}"
 
 	case $host in
-		cygwin*) LTO_PLUGIN=cyglto_plugin-0.dll; MY_LTO_PLUGIN=cyglto_plugin_mintelf-${gcc_dir_version}.dll ;;
-		mingw* | msys*) LTO_PLUGIN=liblto_plugin-0.dll; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}.dll ;;
-		macos*) LTO_PLUGIN=liblto_plugin.dylib; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}.dylib ;;
-		*) LTO_PLUGIN=liblto_plugin.so.0.0.0; MY_LTO_PLUGIN=liblto_plugin_mintelf.so.${gcc_dir_version} ;;
+		cygwin*) soext=.dll; LTO_PLUGIN=cyglto_plugin-0${soext}; MY_LTO_PLUGIN=cyglto_plugin_mintelf-${gcc_dir_version}${soext} ;;
+		mingw* | msys*) soext=.dll; LTO_PLUGIN=liblto_plugin-0${soext}; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}${soext} ;;
+		macos*) soext=.dylib; LTO_PLUGIN=liblto_plugin${soext}; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}${soext} ;;
+		*) soext=.so; LTO_PLUGIN=liblto_plugin${soext}.0.0.0; MY_LTO_PLUGIN=liblto_plugin_mintelf${soext}.${gcc_dir_version} ;;
 	esac
 	
 	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1,cc1gm2,g++-mapper-server}${BUILD_EXEEXT} \
 		${gccsubdir#/}/${LTO_PLUGIN} \
 		${gccsubdir#/}/plugin/gengtype${BUILD_EXEEXT} \
+		${gccsubdir#/}/plugin/m2rte${soext} \
 		${gccsubdir#/}/install-tools/fixincl${BUILD_EXEEXT}; do
 		test -f "$f" && ${STRIP} "$f"
 	done
@@ -735,6 +751,7 @@ if $with_m2; then
 	test -d ${gccsubdir#/}/m2 && m2="$m2 "${gccsubdir#/}/m2
 	m2="$m2 "`find ${gccsubdir#/} -name "libm2*"`
 	m2="$m2 "`find ${gccsubdir#/} -name "cc1gm2*"`
+	test -f ${gccsubdir#/}/plugin/m2rte${soext} && m2="$m2 ${gccsubdir#/}/plugin/m2rte${soext}"
 	m2="$m2 "${PREFIX#/}/bin/${TARGET}-gm2*
 	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-m2-${host}.tar.xz $m2 || exit 1
 	rm -rf $m2

@@ -7,9 +7,15 @@
 
 me="$0"
 
+unset CDPATH
+unset LANG LANGUAGE LC_ALL LC_CTYPE LC_TIME LC_NUMERIC LC_COLLATE LC_MONETARY LC_MESSAGES
+
+scriptdir=${0%/*}
+scriptdir=`cd "${scriptdir}"; pwd`
+
 PACKAGENAME=binutils
-VERSION=-2.39
-VERSIONPATCH=-20230206
+VERSION=-2.40
+VERSIONPATCH=-20230224
 REVISION="GNU Binutils for MiNT ${VERSIONPATCH#-}"
 
 TARGET=${1:-m68k-atari-mint}
@@ -35,7 +41,7 @@ srcdir="${PACKAGENAME}${VERSION}"
 # BINUTILS_SUPPORT_DIRS is from src-release.sh
 #
 # The mint patch can be recreated by running
-# git diff binutils-2_39-branch binutils-2_39-mint
+# git diff binutils-2_40-branch binutils-2_40-mint
 # in my fork (https://github.com/th-otto/binutils/tree/binutils-2_39-mint)
 #
 PATCHES="\
@@ -60,7 +66,11 @@ case `uname -s` in
 	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi ;;
 	Darwin*) host=macos; STRIP=strip; TAR_OPTS= ;;
 	*) host=linux64
-	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=linux32; fi
+	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then
+	      host=linux32
+	      PKG_DIR+="-32bit"
+	      export PATH=$PKG_DIR/usr/bin:$PATH
+	   fi
 	   ;;
 esac
 case $host in
@@ -179,6 +189,8 @@ CFLAGS_FOR_BUILD="-O2 -fomit-frame-pointer"
 LDFLAGS_FOR_BUILD="-s"
 CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 
+unset GLIBC_SO
+
 case $host in
 	macos*)
 		GCC=/usr/bin/clang
@@ -198,6 +210,11 @@ case $host in
 		CFLAGS_FOR_BUILD="-pipe -O2 ${ARCHS}"
 		CXXFLAGS_FOR_BUILD="-pipe -O2 -stdlib=libc++ ${ARCHS}"
 		LDFLAGS_FOR_BUILD="-Wl,-headerpad_max_install_names ${ARCHS}"
+		;;
+	linux64)
+		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
+		CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
+		export GLIBC_SO="$here/$srcdir/bfd/glibc.so"
 		;;
 esac
 
@@ -273,6 +290,9 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 	rm -f ${BUILD_LIBDIR#/}/libiberty.a
 
 	rm -f ${PREFIX#/}/share/info/dir
+    rm -f ${BUILD_LIBDIR#/}/bfd-plugins/libdep.so
+    rm -f ${BUILD_LIBDIR#/}/bfd-plugins/*dep.dll
+    rmdir ${BUILD_LIBDIR#/}/bfd-plugins 2>/dev/null || :
 	for f in ${PREFIX#/}/share/man/*/* ${PREFIX#/}/share/info/*; do
 		case $f in
 		*.gz) ;;
