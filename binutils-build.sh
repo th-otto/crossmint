@@ -191,6 +191,8 @@ CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 
 unset GLIBC_SO
 
+without_zstd=
+
 case $host in
 	macos*)
 		GCC=/usr/bin/clang
@@ -205,6 +207,8 @@ case $host in
 		if test "$BUILD_ARM64" = yes; then
 			ARCHS="${ARCHS} -arch arm64"
 			MACOSX_DEPLOYMENT_TARGET=11
+			# zstd on github runners is only build for x86_64
+			without_zstd=--without-zstd
 		fi
 		export MACOSX_DEPLOYMENT_TARGET
 		CFLAGS_FOR_BUILD="-pipe -O2 ${ARCHS}"
@@ -244,6 +248,7 @@ export CXX="${GXX}"
 	$enable_plugins \
 	--disable-nls \
 	--with-system-zlib \
+	$without_zstd \
 	--with-system-readline \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root"
 
