@@ -60,7 +60,7 @@ case `uname -s` in
 	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; PREFIX=/$host ;;
 	MSYS*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; PREFIX=/$host ;;
 	CYGWIN*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=cygwin32; else host=cygwin64; fi; PREFIX=/usr ;;
-	Darwin*) host=macos; STRIP=strip; TAR_OPTS=; SED_INPLACE="-i ''"; PREFIX=/opt/cross-mint ;;
+	Darwin*) host=macos; STRIP=strip; TAR_OPTS=; SED_INPLACE="-i .orig"; PREFIX=/opt/cross-mint ;;
 	*) PREFIX=/usr
 	   host=linux64
 	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then
@@ -179,6 +179,7 @@ patches/gmp/gmp-universal.patch
 patches/gmp/gmp-6.2.1-CVE-2021-43618.patch
 patches/gmp/gmp-6.2.1-arm64-invert_limb.patch
 gmp-for-gcc.sh
+zstd-for-gcc.sh
 "
 
 if test ! -f ".patched-${PACKAGENAME}${VERSION}"; then
@@ -268,7 +269,8 @@ if test "$BASE_VER" != "${VERSION#-}"; then
 	echo "version mismatch: this script is for gcc ${VERSION#-}, but gcc source is version $BASE_VER" >&2
 	exit 1
 fi
-gcc_dir_version=$(echo $BASE_VER | cut -d '.' -f 1)
+gcc_major_version=$(echo $BASE_VER | cut -d '.' -f 1)
+gcc_dir_version=$gcc_major_version
 gccsubdir=${BUILD_LIBDIR}/gcc/${TARGET}/${gcc_dir_version}
 gxxinclude=/usr/include/c++/${gcc_dir_version}
 
@@ -369,7 +371,7 @@ fi
 mpfr_config=
 
 unset GLIBC_SO
-without_zstd=
+with_zstd=
 
 case $host in
 	macos*)
@@ -394,8 +396,10 @@ case $host in
 		CXXFLAGS_FOR_BUILD="-pipe -O2 -stdlib=libc++ ${ARCHS}"
 		LDFLAGS_FOR_BUILD="-Wl,-headerpad_max_install_names ${ARCHS}"
 		mpfr_config="--with-mpc=${CROSSTOOL_DIR}"
-		# zstd gives link errors on github runners
-		without_zstd=--without-zstd
+		if test $gcc_major_version -ge 10; then
+			export PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR:${CROSSTOOL_DIR}/lib/pkgconfig"
+			with_zstd="--with-zstd=${CROSSTOOL_DIR}"
+		fi
 		;;
 	linux64)
 		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -include $srcdir/gcc/libcwrap.h"
@@ -469,6 +473,9 @@ fail()
 # Now, for darwin, build gmp etc.
 #
 . ${scriptdir}/gmp-for-gcc.sh
+if test $gcc_major_version -ge 10; then
+	. ${scriptdir}/zstd-for-gcc.sh
+fi
 
 cd "$MINT_BUILD_DIR"
 
@@ -514,7 +521,7 @@ $srcdir/configure \
 	$enable_plugin \
 	--disable-decimal-float \
 	--disable-nls \
-	$without_zstd \
+	$with_zstd \
 	--with-libiconv-prefix="${PREFIX}" \
 	--with-libintl-prefix="${PREFIX}" \
 	$mpfr_config \
@@ -536,8 +543,6 @@ esac
 ${MAKE} $JOBS all-gcc || exit 1
 ${MAKE} $JOBS all-target-libgcc || exit 1
 ${MAKE} $JOBS || exit 1
-
-gcc_major_version=$(echo $BASE_VER | cut -d '.' -f 1)
 
 THISPKG_DIR="${DIST_DIR}/${PACKAGENAME}${VERSION}"
 rm -rf "${THISPKG_DIR}"

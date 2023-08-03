@@ -26,6 +26,16 @@ case `uname -s` in
 	*) here=`pwd` ;;
 esac
 
+#
+# where to look for 3rd party libraries like zstd etc.
+# Should be a static compiled version, so the
+# compiler does not depend on non-standard shared libs
+# We will compile now the required libraries before
+# trying to compile binutils/gcc, in order to produce universal
+# libraries for darwin
+#
+CROSSTOOL_DIR="$HOME/crosstools"
+
 ARCHIVES_DIR=$HOME/packages
 BUILD_DIR="$here"
 MINT_BUILD_DIR="$BUILD_DIR/binutils-build"
@@ -49,6 +59,7 @@ PATCHES="\
 "
 ALLPATCHES="$PATCHES \
         patches/binutils/binutils-m68k-segmentalign.patch \
+        zstd-for-gcc.sh \
 "
 
 TAR=${TAR-tar}
@@ -191,7 +202,8 @@ CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 
 unset GLIBC_SO
 
-without_zstd=
+with_zstd=
+SED_INPLACE=-i
 
 case $host in
 	macos*)
@@ -207,13 +219,13 @@ case $host in
 		if test "$BUILD_ARM64" = yes; then
 			ARCHS="${ARCHS} -arch arm64"
 			MACOSX_DEPLOYMENT_TARGET=11
-			# zstd on github runners is only build for x86_64
-			without_zstd=--without-zstd
 		fi
 		export MACOSX_DEPLOYMENT_TARGET
 		CFLAGS_FOR_BUILD="-pipe -O2 ${ARCHS}"
 		CXXFLAGS_FOR_BUILD="-pipe -O2 -stdlib=libc++ ${ARCHS}"
 		LDFLAGS_FOR_BUILD="-Wl,-headerpad_max_install_names ${ARCHS}"
+		export PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR:${CROSSTOOL_DIR}/lib/pkgconfig"
+		SED_INPLACE="-i .orig"
 		;;
 	linux64)
 		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
@@ -224,6 +236,21 @@ esac
 
 export CC="${GCC}"
 export CXX="${GXX}"
+
+fail()
+{
+	component="$1"
+	echo "configuring $component failed"
+	exit 1
+}
+
+
+#
+# Now, for darwin, build gmp etc.
+#
+. ${scriptdir}/zstd-for-gcc.sh
+
+cd "$MINT_BUILD_DIR"
 
 ../$srcdir/configure \
 	--target="${TARGET}" --build="$BUILD" \
@@ -248,7 +275,7 @@ export CXX="${GXX}"
 	$enable_plugins \
 	--disable-nls \
 	--with-system-zlib \
-	$without_zstd \
+	$with_zstd \
 	--with-system-readline \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root"
 
