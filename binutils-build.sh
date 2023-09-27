@@ -14,11 +14,14 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=binutils
-VERSION=-2.40
-VERSIONPATCH=-20230224
+VERSION=-2.41
+VERSIONPATCH=-20230926
 REVISION="GNU Binutils for MiNT ${VERSIONPATCH#-}"
 
 TARGET=${1:-m68k-atari-mint}
+if test "$TARGET" = m68k-atari-mintelf; then
+REVISION="GNU Binutils for MiNT ELF ${VERSIONPATCH#-}"
+fi
 PREFIX=/usr
 
 case `uname -s` in
@@ -46,13 +49,13 @@ srcdir="${PACKAGENAME}${VERSION}"
 
 #
 # The branch patch was created by
-# BINUTILS_SUPPORT_DIRS="bfd gas include libiberty opcodes ld elfcpp gold gprof intl setup.com makefile.vms cpu zlib"
+# BINUTILS_SUPPORT_DIRS="libsframe bfd gas include libiberty libctf opcodes ld elfcpp gold gprof gprofng intl setup.com makefile.vms cpu zlib"
 # git diff binutils-2_29_1.1 binutils-2_29-branch -- $BINUTILS_SUPPORT_DIRS
 # BINUTILS_SUPPORT_DIRS is from src-release.sh
 #
 # The mint patch can be recreated by running
-# git diff binutils-2_40-branch binutils-2_40-mint
-# in my fork (https://github.com/th-otto/binutils/tree/binutils-2_39-mint)
+# git diff binutils-2_41-branch binutils-2_41-mint
+# in my fork (https://github.com/th-otto/binutils/)
 #
 PATCHES="\
         patches/binutils/${PACKAGENAME}${VERSION}-mint${VERSIONPATCH}.patch \
@@ -118,6 +121,15 @@ if test ! -d "$srcdir"; then
 	echo "$srcdir: no such directory" >&2
 	exit 1
 fi
+srcdir=`cd "$srcdir"; pwd`
+
+# we may need to regenerate some file in the source tree,
+# if it is a git repo
+cd "$srcdir/ld"
+if test ldlex.l -nt ldlex.c; then rm -f ldlex.c; fi
+if test ldgram.y -nt ldgram.c; then rm -f ldgram.c ldgram.h; fi
+if test deffilep.y -nt deffilep.c; then rm -f deffilep.c deffilep.h; fi
+cd "$BUILD_DIR"
 
 if test -d /usr/lib64 -a $host = linux64; then
 	BUILD_LIBDIR=${PREFIX}/lib64
@@ -202,7 +214,7 @@ CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 
 unset GLIBC_SO
 
-with_zstd=
+with_gmp=
 SED_INPLACE=-i
 
 case $host in
@@ -226,11 +238,12 @@ case $host in
 		LDFLAGS_FOR_BUILD="-Wl,-headerpad_max_install_names ${ARCHS}"
 		export PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR:${CROSSTOOL_DIR}/lib/pkgconfig"
 		SED_INPLACE="-i .orig"
+		with_gmp=--with-gmp=${CROSSTOOL_DIR}
 		;;
 	linux64)
 		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 		CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
-		export GLIBC_SO="$here/$srcdir/bfd/glibc.so"
+		export GLIBC_SO="$srcdir/bfd/glibc.so"
 		;;
 esac
 
@@ -248,11 +261,13 @@ fail()
 #
 # Now, for darwin, build gmp etc.
 #
+. ${scriptdir}/gmp-for-gcc.sh
 . ${scriptdir}/zstd-for-gcc.sh
 
 cd "$MINT_BUILD_DIR"
 
-../$srcdir/configure \
+$srcdir/configure \
+	MAKEINFO="echo texinfo 7.0" \
 	--target="${TARGET}" --build="$BUILD" \
 	--prefix="${PREFIX}" \
 	--libdir="$BUILD_LIBDIR" \
@@ -263,6 +278,7 @@ cd "$MINT_BUILD_DIR"
 	LDFLAGS="$LDFLAGS_FOR_BUILD" \
 	$bfd_targets \
 	--with-pkgversion="$REVISION" \
+	--with-bugurl='https://github.com/freemint/m68k-atari-mint-binutils-gdb/issues' \
 	--with-stage1-ldflags= \
 	--with-boot-ldflags="$LDFLAGS_FOR_BUILD" \
 	--with-gcc --with-gnu-as --with-gnu-ld \
@@ -275,8 +291,9 @@ cd "$MINT_BUILD_DIR"
 	$enable_plugins \
 	--disable-nls \
 	--with-system-zlib \
-	$with_zstd \
+	$with_gmp \
 	--with-system-readline \
+	--disable-bracketed-paste-default \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root"
 
 ${MAKE} $JOBS || exit 1
@@ -336,6 +353,30 @@ done
 cd "${THISPKG_DIR}" || exit 1
 
 TARNAME=${PACKAGENAME}${VERSION}-${TARGET##*-}${VERSIONPATCH}
+
+# create separate archive for gdb
+if test -f ${PREFIX#/}/bin/${TARGET}-gdb; then
+	gdb=${PREFIX#/}/bin/${TARGET}-gdb*
+	# do not overwrite the system files
+	if test "${PREFIX}" = /usr -o "${PREFIX}" = "$MINGW_PREFIX"; then
+		rm -rf "${PREFIX#/}/share/gdb"
+		rm -f "${PREFIX#/}/share/info/"*gdb*
+		rm -f "${PREFIX#/}/share/man/"*/*gdb*
+		rm -rf "${PREFIX#/}/include/gdb"
+	else
+		gdb="$gdb "${PREFIX#/}/share/gdb"
+		gdb="$gdb "${PREFIX#/}/share/info/"*gdb*
+		gdb="$gdb "${PREFIX#/}/share/man/"*/*gdb*
+		gdb="$gdb "${PREFIX#/}/include/gdb"
+	fi
+	# this is empty currently
+	rmdir "${PREFIX#/}/include/sim" 2>/dev/null || true
+	gdb_version=`cat $srcdir/gdb/version.in`
+	gdb_version=${gdb_version//.DATE-git/}
+	gdb_version=$(echo ${gdb_version} | cut -d '.' -f 1-2)
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/gdb-${gdb_version}-${TARGET##*-}${VERSIONPATCH}-${host}.tar.xz $gdb || exit 1
+	rm -rf $gdb
+fi
 
 ${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-doc.tar.xz ${PREFIX#/}/share/info ${PREFIX#/}/share/man
 rm -rf ${PREFIX#/}/share/info

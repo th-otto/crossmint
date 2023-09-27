@@ -20,8 +20,7 @@ TAR=${TAR-tar}
 TAR_OPTS=${TAR_OPTS---owner=0 --group=0}
 GCC=${GCC-gcc}
 GXX=${GXX-g++}
-host="`uname -s`"
-case "${host}" in
+case `uname -s` in
 	MINGW64*) host=mingw64; MINGW_PREFIX=/mingw64; ;;
 	MINGW32*) host=mingw32; MINGW_PREFIX=/mingw32; ;;
 	MINGW*) if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then host=mingw32; else host=mingw64; fi; MINGW_PREFIX=/$host ;;
@@ -180,6 +179,7 @@ if test "$BUILD" = ""; then
 fi
 
 LTO_CFLAGS=
+ELF_CFLAGS=
 ranlib=ranlib
 STRIP=${STRIP-strip -p}
 
@@ -189,6 +189,7 @@ case "${TARGET}" in
 		# we cannot add this to CFLAGS, because then autoconf tests
 		# for missing c library functions will always succeed
 		LTO_CFLAGS="-flto -ffat-lto-objects"
+		ELF_CFLAGS="-ffunction-sections -fdata-sections"
 		;;
 esac
 
@@ -198,11 +199,15 @@ esac
 #
 if test ! -f "${prefix}/bin/${TARGET}-${ranlib}"; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
-		echo "fetching binutils"
-		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.39-${TARGET##*-}-20230206-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
-		echo "fetching gcc"
-		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/gcc-7/gcc-7.5.0-${TARGET##*-}-20230210-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
-		if test "${PACKAGENAME}" != mintbin; then
+		if test "${PACKAGENAME}" != binutils; then
+			echo "fetching binutils"
+			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.41-${TARGET##*-}-20230926-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
+		fi
+		if test "${PACKAGENAME}" != gcc -a "${PACKAGENAME}" != binutils; then
+			echo "fetching gcc"
+			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/gcc-7/gcc-7.5.0-${TARGET##*-}-20230210-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
+		fi
+		if test "${PACKAGENAME}" != mintbin -a "${PACKAGENAME}" != gcc -a "${PACKAGENAME}" != binutils; then
 			echo "fetching mintbin"
 			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/mintbin/mintbin-0.3-${TARGET##*-}-20230206-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
 		fi
@@ -219,9 +224,9 @@ if ! test -f ${sysroot}/usr/include/compiler.h; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
 		sudo mkdir -p "${sysroot}/usr"
 		echo "fetching mintlib"
-		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-latest.tar.bz2" | sudo $TAR -C "${sysroot}/usr" -xjf -
+		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${sysroot}/usr" -xjf -
 		echo "fetching fdlibm"
-		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-latest.tar.bz2" | sudo $TAR -C "${sysroot}/usr" -xjf -
+		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${sysroot}/usr" -xjf -
 	fi
 fi
 
@@ -249,16 +254,20 @@ unpack_archive()
 		missing=true
 		test -z "$srcarchive" && srcarchive=${PACKAGENAME}${VERSION}
 		for f in "$ARCHIVES_DIR/${srcarchive}.tar.xz" \
+		         "$ARCHIVES_DIR/${srcarchive}.tar.zst" \
 		         "$ARCHIVES_DIR/${srcarchive}.tar.lz" \
 		         "$ARCHIVES_DIR/${srcarchive}.tar.bz2" \
 		         "$ARCHIVES_DIR/${srcarchive}.tar.gz" \
 		         "$ARCHIVES_DIR/${srcarchive}.tgz" \
+		         "$ARCHIVES_DIR/${srcarchive}.tlz" \
 		         "${here}/${srcarchive}.tar.xz" \
+		         "${here}/${srcarchive}.tar.zst" \
 		         "${here}/${srcarchive}.tar.lz" \
 		         "${here}/${srcarchive}.tar.bz2" \
 		         "${here}/${srcarchive}.tar.gz" \
-		         "${here}/${srcarchive}.tgz"; do
-			if test -f "$f"; then missing=false; tar xf "$f" || exit 1; fi
+		         "${here}/${srcarchive}.tgz" \
+		         "${here}/${srcarchive}.tlz"; do
+			if test -f "$f"; then missing=false; tar xf "$f" || exit 1; break; fi
 		done
 		if $missing; then
 			echo "${srcarchive}.*: no such file" >&2
