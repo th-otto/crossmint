@@ -215,6 +215,7 @@ CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 unset GLIBC_SO
 
 with_gmp=
+gdb=
 SED_INPLACE=-i
 
 case $host in
@@ -239,6 +240,8 @@ case $host in
 		export PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR:${CROSSTOOL_DIR}/lib/pkgconfig"
 		SED_INPLACE="-i .orig"
 		with_gmp=--with-gmp=${CROSSTOOL_DIR}
+		# disable gdb for now, since it is not part of the binutils archive
+		gdb=--disable-gdb
 		;;
 	linux64)
 		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
@@ -261,7 +264,9 @@ fail()
 #
 # Now, for darwin, build gmp etc.
 #
-. ${scriptdir}/gmp-for-gcc.sh
+if test "$gdb" = ""; then
+	. ${scriptdir}/gmp-for-gcc.sh
+fi
 . ${scriptdir}/zstd-for-gcc.sh
 
 cd "$MINT_BUILD_DIR"
@@ -291,7 +296,7 @@ $srcdir/configure \
 	$enable_plugins \
 	--disable-nls \
 	--with-system-zlib \
-	$with_gmp \
+	$with_gmp $gdb \
 	--with-system-readline \
 	--disable-bracketed-paste-default \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root"
