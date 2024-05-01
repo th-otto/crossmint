@@ -180,6 +180,7 @@ fi
 
 LTO_CFLAGS=
 ELF_CFLAGS=
+ELF_LDFLAGS=
 ranlib=ranlib
 STRIP=${STRIP-strip -p}
 
@@ -190,6 +191,7 @@ case "${TARGET}" in
 		# for missing c library functions will always succeed
 		LTO_CFLAGS="-flto -ffat-lto-objects"
 		ELF_CFLAGS="-ffunction-sections -fdata-sections"
+		ELF_LDFLAGS="-Wl,--gc-sections"
 		;;
 esac
 
@@ -205,11 +207,11 @@ if test ! -f "${prefix}/bin/${TARGET}-${ranlib}"; then
 		fi
 		if test "${PACKAGENAME}" != gcc -a "${PACKAGENAME}" != binutils; then
 			echo "fetching gcc"
-			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/gcc-7/gcc-7.5.0-${TARGET##*-}-20230210-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
+			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/gcc-7/gcc-7.5.0-${TARGET##*-}-20230908-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
 		fi
 		if test "${PACKAGENAME}" != mintbin -a "${PACKAGENAME}" != gcc -a "${PACKAGENAME}" != binutils; then
 			echo "fetching mintbin"
-			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/mintbin/mintbin-0.3-${TARGET##*-}-20230206-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
+			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/mintbin/mintbin-0.4-${TARGET##*-}-20230911-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
 		fi
 		if test "${prefix}" != /usr; then
 			export PATH="${prefix}/bin:$PATH"
@@ -634,7 +636,7 @@ make_archives()
 		rm -rf "${srcdir}"
 	fi
 
-	test -z "${PATCHES}${DISABLED_PATCHES}" || ${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${BINTARNAME}.tar.xz ${PATCHES} ${DISABLED_PATCHES} ${POST_INSTALL_SCRIPTS} ${PATCHARCHIVE}
+	test -z "${PATCHES}${DISABLED_PATCHES}${EXTRA_DIST}" || ${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${BINTARNAME}.tar.xz ${PATCHES} ${DISABLED_PATCHES} ${EXTRA_DIST} ${POST_INSTALL_SCRIPTS} ${PATCHARCHIVE}
 	cp -p "$me" ${DIST_DIR}/${PACKAGENAME}${VERSION}${VERSIONPATCH}-build.sh
 	cp -p "${scriptdir}/functions.sh" "${DIST_DIR}"
 }

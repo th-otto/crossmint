@@ -14,8 +14,8 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=binutils
-VERSION=-2.41
-VERSIONPATCH=-20230926
+VERSION=-2.42
+VERSIONPATCH=-20240309
 REVISION="GNU Binutils for MiNT ${VERSIONPATCH#-}"
 
 TARGET=${1:-m68k-atari-mint}
@@ -54,7 +54,7 @@ srcdir="${PACKAGENAME}${VERSION}"
 # BINUTILS_SUPPORT_DIRS is from src-release.sh
 #
 # The mint patch can be recreated by running
-# git diff binutils-2_41-branch binutils-2_41-mint
+# git diff binutils-2_42-branch binutils-2_42-mint
 # in my fork (https://github.com/th-otto/binutils/)
 #
 PATCHES="\
@@ -82,7 +82,7 @@ case `uname -s` in
 	*) host=linux64
 	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then
 	      host=linux32
-	      PKG_DIR+="-32bit"
+	      PKG_DIR="$PKG_DIR-32bit"
 	      export PATH=$PKG_DIR/usr/bin:$PATH
 	   fi
 	   ;;
@@ -175,7 +175,7 @@ test "$host" = "macos" && bfd_targets=""
 # add opposite of default mingw32 target for binutils,
 # and also host target
 case "${TARGET}" in
-    x86_64-*-mingw32*)
+    x86_64-*-mingw*)
     	if test -n "${bfd_targets}"; then bfd_targets="${bfd_targets},"; else bfd_targets="--enable-targets="; fi
 	    bfd_targets="${bfd_targets}i686-pc-mingw32"
     	;;
@@ -199,7 +199,8 @@ case "${TARGET}" in
     	bfd_targets="${bfd_targets}m68k-atari-mintelf"
 		;;
     *-*-darwin*)
-        bfd_targets="${bfd_targets},aarch64-apple-darwin"
+    	if test -n "${bfd_targets}"; then bfd_targets="${bfd_targets},"; else bfd_targets="--enable-targets="; fi
+        bfd_targets="${bfd_targets}aarch64-apple-darwin"
 		;;
 esac
 
@@ -208,14 +209,22 @@ mkdir -p "$MINT_BUILD_DIR"
 
 cd "$MINT_BUILD_DIR"
 
+glibc_hack=false
+if test "`lsb_release -s -i 2>/dev/null`" = openSUSE; then
+	glibc_hack=true
+fi
+
 CFLAGS_FOR_BUILD="-O2 -fomit-frame-pointer"
+if ! $glibc_hack; then
+	CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -D__LIBC_CUSTOM_BINDINGS_H__"
+fi
 LDFLAGS_FOR_BUILD="-s"
 CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 
 unset GLIBC_SO
 
 with_gmp=
-gdb=
+build_gdb=true
 SED_INPLACE=-i
 
 case $host in
@@ -241,14 +250,25 @@ case $host in
 		SED_INPLACE="-i .orig"
 		with_gmp=--with-gmp=${CROSSTOOL_DIR}
 		# disable gdb for now, since it is not part of the binutils archive
-		gdb=--disable-gdb
+		build_gdb=false
 		;;
 	linux64)
 		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 		CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
-		export GLIBC_SO="$srcdir/bfd/glibc.so"
+		if $glibc_hack; then
+			export GLIBC_SO="$srcdir/bfd/glibc.so"
+		fi
+		;;
+	mingw*)
+		build_gdb=false
 		;;
 esac
+if test "$TARGET" != m68k-atari-mintelf; then
+	build_gdb=false
+fi
+if ! $build_gdb; then
+	gdb="--disable-gdb --disable-gdbserver --disable-sim --disable-readline"
+fi
 
 export CC="${GCC}"
 export CXX="${GXX}"
@@ -289,6 +309,7 @@ $srcdir/configure \
 	--with-gcc --with-gnu-as --with-gnu-ld \
 	--disable-werror \
 	--disable-threads \
+	--disable-threading \
 	--enable-new-dtags \
 	--enable-relro \
 	--enable-default-hash-style=both \
@@ -297,7 +318,6 @@ $srcdir/configure \
 	--disable-nls \
 	--with-system-zlib \
 	$with_gmp $gdb \
-	--with-system-readline \
 	--disable-bracketed-paste-default \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root"
 
@@ -318,7 +338,11 @@ esac
 #
 THISPKG_DIR="${DIST_DIR}/${PACKAGENAME}${VERSION}"
 rm -rf "${THISPKG_DIR}"
-for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
+INSTALL_DIRS="${THISPKG_DIR}"
+if $glibc_hack; then
+	INSTALL_DIRS="${PKG_DIR} ${INSTALL_DIRS}"
+fi
+for INSTALL_DIR in ${INSTALL_DIRS}; do
 	
 	cd "$MINT_BUILD_DIR"
 	${MAKE} DESTDIR="$INSTALL_DIR" prefix="${PREFIX}" bindir="${PREFIX}/bin" install-strip >/dev/null || exit 1
@@ -379,15 +403,24 @@ if test -f ${PREFIX#/}/bin/${TARGET}-gdb; then
 	gdb_version=`cat $srcdir/gdb/version.in`
 	gdb_version=${gdb_version//.DATE-git/}
 	gdb_version=$(echo ${gdb_version} | cut -d '.' -f 1-2)
-	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/gdb-${gdb_version}-${TARGET##*-}${VERSIONPATCH}-${host}.tar.xz $gdb || exit 1
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/gdb-${gdb_version}-${TARGET##*-}${VERSIONPATCH}-bin-${host}.tar.xz $gdb || exit 1
 	rm -rf $gdb
 fi
 
 ${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-doc.tar.xz ${PREFIX#/}/share/info ${PREFIX#/}/share/man
 rm -rf ${PREFIX#/}/share/info
 rm -rf ${PREFIX#/}/share/man
+rmdir "${PREFIX#/}/share" 2>/dev/null || :
 
-${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-bin-${host}.tar.xz ${PREFIX#/}
+if test $glibc_hack = false -a \( $host = linux32 -o $host = linux64 \); then
+	id=`lsb_release -i -s | tr '[[:upper:]]' '[[:lower:]]'`
+	release=`lsb_release -r -s`
+	# binutils-x.y-ubuntu-20.04-mint.tar.xz
+	TARNAME=${PACKAGENAME}${VERSION}-${id}-${release}-${TARGET##*-}
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}.tar.xz ${PREFIX#/}
+else
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-bin-${host}.tar.xz ${PREFIX#/}
+fi
 
 cd "${BUILD_DIR}"
 if test "$KEEP_PKGDIR" != yes; then

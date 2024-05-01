@@ -12,15 +12,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [ binutils, gcc-7 ]
+        project: [ binutils, mintbin ]
         target: [ m68k-atari-mint, m68k-atari-mintelf ]
         include:
           - project: binutils
-            version: 2.41
-            source_archive: https://ftp.gnu.org/gnu/binutils/binutils-2.41.tar.xz
-          - project: gcc-7
-            version: 7.5.0
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-7.5.0/gcc-7.5.0.tar.xz
+            version: 2.42
+            source_archive: https://ftp.gnu.org/gnu/binutils/binutils-2.42.tar.xz
+          - project: mintbin
+            version: 0.4
+            source_archive: https://tho-otto.de/download/mint/mintbin-0.4.tar.xz
     steps:
       - uses: actions/checkout@v3
       - name: Install SSH keys
