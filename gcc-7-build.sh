@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This is an almost automatic script for building the binary packages.
 # It is designed to be run on linux, cygwin or mingw,
@@ -14,7 +14,7 @@ scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
 VERSION=-7.5.0
-VERSIONPATCH=-20230908
+VERSIONPATCH=-20240501
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -68,7 +68,7 @@ case `uname -s` in
 	   host=linux64
 	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then
 	      host=linux32
-	      PKG_DIR+="-32bit"
+	      PKG_DIR="$PKG_DIR-32bit"
 	      export PATH=${PKG_DIR}/usr/bin:$PATH
           #
           # This is needed because otherwise configure scripts
@@ -160,15 +160,18 @@ esac
 # whether to use dwarf2 exceptions instead of sjlj.
 # Only works for elf toolchains.
 #
-#with_dw2_exceptions=--disable-sjlj-exceptions
-
+case $TARGET in
+*-*-*elf)
+	with_dw2_exceptions=--disable-sjlj-exceptions
+	;;
+esac
 
 
 #
 # this patch can be recreated by
 # - cloning https://github.com/th-otto/m68k-atari-mint-gcc.git
-# - checking out the mint/gcc-7 branch
-# - running git diff releases/gcc-7.5.0 HEAD
+# - checking out the mint/gcc-${gcc_major} branch
+# - running git diff releases/gcc-${VERSION} HEAD
 #
 # when a new GCC is released:
 #   cd <directory where m68k-atari-mint-gcc.git> has been cloned
@@ -180,8 +183,8 @@ esac
 #      git fetch --all
 #      git push --tags
 #   merge new release into our branch:
-#      git checkout mint/gcc-7
-#      git merge releases/gcc-7.5.0 (& commit)
+#      git checkout mint/gcc-${gcc_major}
+#      git merge releases/gcc-${VERSION} (& commit)
 #      git push
 #
 PATCHES="patches/gcc/${PACKAGENAME}${VERSION}-mint${VERSIONPATCH}.patch"
@@ -246,9 +249,9 @@ if ! test -f ${PREFIX}/${TARGET}/sys-root/usr/include/compiler.h; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
 		sudo mkdir -p ${PREFIX}/${TARGET}/sys-root/usr
 		echo "fetching mintlib"
-		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root/usr" -xjf -
+		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root" -xjf -
 		echo "fetching fdlibm"
-		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root/usr" -xjf -
+		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root" -xjf -
 	fi
 fi
 
@@ -309,9 +312,17 @@ mkdir -p "$MINT_BUILD_DIR"
 
 cd "$MINT_BUILD_DIR"
 
+glibc_hack=false
+if test "`lsb_release -s -i 2>/dev/null`" = openSUSE; then
+	glibc_hack=true
+fi
+
 CFLAGS_FOR_BUILD="-O2 -fomit-frame-pointer"
 CFLAGS_FOR_TARGET="-O2 -fomit-frame-pointer"
 LDFLAGS_FOR_BUILD=""
+if ! $glibc_hack; then
+	CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -D__LIBC_CUSTOM_BINDINGS_H__"
+fi
 CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 CXXFLAGS_FOR_TARGET="$CFLAGS_FOR_TARGET"
 LDFLAGS_FOR_TARGET=
@@ -357,7 +368,7 @@ mkdir -p "${PKG_DIR}"
 if test ! -f "${PKG_DIR}/${PREFIX}/bin/${TARGET}-${ranlib}"; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
 		echo "fetching binutils"
-		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.41-${TARGET##*-}-20230926-bin-${host}.tar.xz" | $TAR -C "${PKG_DIR}" -xJf -
+		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.42-${TARGET##*-}-20240309-bin-${host}.tar.xz" | $TAR -C "${PKG_DIR}" -xJf -
 		export PATH="${PKG_DIR}${PREFIX}/bin:$PATH"
 	fi
 fi
@@ -424,9 +435,11 @@ case $host in
 		fi
 		;;
 	linux64)
-		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -include $srcdir/gcc/libcwrap.h"
-		CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
-		export GLIBC_SO="$srcdir/gcc/glibc.so"
+		if $glibc_hack; then
+			CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -include $srcdir/gcc/libcwrap.h"
+			CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
+			export GLIBC_SO="$srcdir/gcc/glibc.so"
+		fi
 		;;
 esac
 
@@ -434,7 +447,7 @@ esac
 #
 # Note: for ADA, you have to use the same major of gcc as the one we are compiling here.
 # If your hosts compiler is a newer one, set
-# GCC=gcc-7 GXX=g++-7 before running this script
+# GCC=gcc-${gcc_major} GXX=g++-${gcc_major} before running this script
 #
 case $GCC in
 	*-[0-9]*-m32)
@@ -804,7 +817,15 @@ fi
 #
 # create archive for all others
 #
-${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-bin-${host}.tar.xz ${PREFIX#/}
+if test $glibc_hack = false -a \( $host = linux32 -o $host = linux64 \); then
+	id=`lsb_release -i -s | tr '[[:upper:]]' '[[:lower:]]'`
+	release=`lsb_release -r -s`
+	# gcc-x.y.z-ubuntu-20.04-mint.tar.xz
+	TARNAME=${PACKAGENAME}${VERSION}-${id}-${release}-${TARGET##*-}
+	${TAR} ${TAR_OPTS} -jcf ${DIST_DIR}/${TARNAME}.tar.bz2 ${PREFIX#/}
+else
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-bin-${host}.tar.xz ${PREFIX#/}
+fi
 
 cd "${BUILD_DIR}"
 if test "$KEEP_PKGDIR" != yes; then

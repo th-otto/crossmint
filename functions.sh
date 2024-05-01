@@ -203,7 +203,7 @@ if test ! -f "${prefix}/bin/${TARGET}-${ranlib}"; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
 		if test "${PACKAGENAME}" != binutils; then
 			echo "fetching binutils"
-			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.41-${TARGET##*-}-20230926-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
+			wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.42-${TARGET##*-}-20240309-bin-${host}.tar.xz" | sudo $TAR -C "/" -xJf -
 		fi
 		if test "${PACKAGENAME}" != gcc -a "${PACKAGENAME}" != binutils; then
 			echo "fetching gcc"
@@ -226,9 +226,9 @@ if ! test -f ${sysroot}/usr/include/compiler.h; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
 		sudo mkdir -p "${sysroot}/usr"
 		echo "fetching mintlib"
-		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${sysroot}/usr" -xjf -
+		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${sysroot}" -xjf -
 		echo "fetching fdlibm"
-		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${sysroot}/usr" -xjf -
+		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${sysroot}" -xjf -
 	fi
 fi
 

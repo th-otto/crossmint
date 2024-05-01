@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This is an almost automatic script for building the binary packages.
 # It is designed to be run on linux, cygwin or mingw,
@@ -14,7 +14,7 @@ scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
 VERSION=-10.5.0
-VERSIONPATCH=-20230719
+VERSIONPATCH=-20240501
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -22,6 +22,9 @@ REVISION="MiNT ${VERSIONPATCH#-}"
 # should be either m68k-atari-mint or m68k-atari-mintelf
 #
 TARGET=${1:-m68k-atari-mint}
+if test "$TARGET" = m68k-atari-mintelf; then
+REVISION="MiNT ELF ${VERSIONPATCH#-}"
+fi
 
 #
 # The hosts compiler.
@@ -65,7 +68,7 @@ case `uname -s` in
 	   host=linux64
 	   if echo "" | ${GCC} -dM -E - 2>/dev/null | grep -q i386; then
 	      host=linux32
-	      PKG_DIR+="-32bit"
+	      PKG_DIR="$PKG_DIR-32bit"
 	      export PATH=${PKG_DIR}/usr/bin:$PATH
           #
           # This is needed because otherwise configure scripts
@@ -154,10 +157,21 @@ esac
 
 
 #
+# whether to use dwarf2 exceptions instead of sjlj.
+# Only works for elf toolchains.
+#
+case $TARGET in
+*-*-*elf)
+	with_dw2_exceptions=--disable-sjlj-exceptions
+	;;
+esac
+
+
+#
 # this patch can be recreated by
 # - cloning https://github.com/th-otto/m68k-atari-mint-gcc.git
-# - checking out the mint/gcc-10 branch
-# - running git diff releases/gcc-10.5.0 HEAD
+# - checking out the mint/gcc-${gcc_major} branch
+# - running git diff releases/gcc-${VERSION} HEAD
 #
 # when a new GCC is released:
 #   cd <directory where m68k-atari-mint-gcc.git> has been cloned
@@ -169,8 +183,8 @@ esac
 #      git fetch --all
 #      git push --tags
 #   merge new release into our branch:
-#      git checkout mint/gcc-10
-#      git merge releases/gcc-10.2.0 (& commit)
+#      git checkout mint/gcc-${gcc_major}
+#      git merge releases/gcc-${VERSION} (& commit)
 #      git push
 #
 PATCHES="patches/gcc/${PACKAGENAME}${VERSION}-mint${VERSIONPATCH}.patch"
@@ -235,9 +249,9 @@ if ! test -f ${PREFIX}/${TARGET}/sys-root/usr/include/compiler.h; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
 		sudo mkdir -p ${PREFIX}/${TARGET}/sys-root/usr
 		echo "fetching mintlib"
-		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root/usr" -xjf -
+		wget -q -O - "https://tho-otto.de/snapshots/mintlib/mintlib-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root" -xjf -
 		echo "fetching fdlibm"
-		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root/usr" -xjf -
+		wget -q -O - "https://tho-otto.de/snapshots/fdlibm/fdlibm-${TARGET##*-}-latest.tar.bz2" | sudo $TAR -C "${PREFIX}/${TARGET}/sys-root" -xjf -
 	fi
 fi
 
@@ -298,9 +312,17 @@ mkdir -p "$MINT_BUILD_DIR"
 
 cd "$MINT_BUILD_DIR"
 
+glibc_hack=false
+if test "`lsb_release -s -i 2>/dev/null`" = openSUSE; then
+	glibc_hack=true
+fi
+
 CFLAGS_FOR_BUILD="-O2 -fomit-frame-pointer"
 CFLAGS_FOR_TARGET="-O2 -fomit-frame-pointer"
 LDFLAGS_FOR_BUILD=""
+if ! $glibc_hack; then
+	CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -D__LIBC_CUSTOM_BINDINGS_H__"
+fi
 CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
 CXXFLAGS_FOR_TARGET="$CFLAGS_FOR_TARGET"
 LDFLAGS_FOR_TARGET=
@@ -346,18 +368,18 @@ mkdir -p "${PKG_DIR}"
 if test ! -f "${PKG_DIR}/${PREFIX}/bin/${TARGET}-${ranlib}"; then
 	if test "${GITHUB_REPOSITORY}" != ""; then
 		echo "fetching binutils"
-		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.39-${TARGET##*-}-20230206-bin-${host}.tar.xz" | $TAR -C "${PKG_DIR}" -xJf -
+		wget -q -O - "https://tho-otto.de/snapshots/crossmint/$host/binutils/binutils-2.42-${TARGET##*-}-20240309-bin-${host}.tar.xz" | $TAR -C "${PKG_DIR}" -xJf -
 		export PATH="${PKG_DIR}${PREFIX}/bin:$PATH"
 	fi
 fi
 
 
 
-try="${PKG_DIR}/${PREFIX}/bin/${TARGET}-${ranlib}"
+try="${PKG_DIR}/${PREFIX#/}/bin/${TARGET}-${ranlib}"
 if test -x "$try"; then
 	ranlib="$try"
-	strip="${PKG_DIR}/${PREFIX}/bin/${TARGET}-strip"
-	as="${PKG_DIR}/${PREFIX}/bin/${TARGET}-as"
+	strip="${PKG_DIR}/${PREFIX#/}/bin/${TARGET}-strip"
+	as="${PKG_DIR}/${PREFIX#/}/bin/${TARGET}-as"
 else
 	ranlib=`which ${TARGET}-${ranlib} 2>/dev/null`
 	strip=`which "${TARGET}-strip" 2>/dev/null`
@@ -366,6 +388,17 @@ fi
 if test "$ranlib" = "" -o ! -x "$ranlib" -o ! -x "$as" -o ! -x "$strip"; then
 	echo "cross-binutil tools for ${TARGET} not found" >&2
 	exit 1
+fi
+
+if test "$TARGET" = m68k-atari-mintelf; then
+  # new PRG+ELF format requires binutils >= 2.41
+  asversion=`$as --version | head -1 | sed -e 's/^.* \([.0-9]*\)$/\1/'`
+  asversion=${asversion%.0}
+  asversion=${asversion//./}
+  if test "$asversion" -lt 241; then
+	echo "cross-binutils >= 2.41 required" >&2
+	exit 1
+  fi
 fi
 
 mpfr_config=
@@ -402,9 +435,11 @@ case $host in
 		fi
 		;;
 	linux64)
-		CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -include $srcdir/gcc/libcwrap.h"
-		CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
-		export GLIBC_SO="$srcdir/gcc/glibc.so"
+		if $glibc_hack; then
+			CFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD -include $srcdir/gcc/libcwrap.h"
+			CXXFLAGS_FOR_BUILD="$CFLAGS_FOR_BUILD"
+			export GLIBC_SO="$srcdir/gcc/glibc.so"
+		fi
 		;;
 esac
 
@@ -412,7 +447,7 @@ esac
 #
 # Note: for ADA, you have to use the same major of gcc as the one we are compiling here.
 # If your hosts compiler is a newer one, set
-# GCC=gcc-10 GXX=g++-10 before running this script
+# GCC=gcc-${gcc_major} GXX=g++-${gcc_major} before running this script
 #
 case $GCC in
 	*-[0-9]*-m32)
@@ -479,6 +514,12 @@ fi
 
 cd "$MINT_BUILD_DIR"
 
+gcc4_compat=
+if test $gcc_major_version -lt 13; then
+	# with gcc 13 and above, do not longer use the compatible interface
+	gcc4_compat=--with-default-libstdcxx-abi=gcc4-compatible
+fi
+
 $srcdir/configure \
 	--target="${TARGET}" --build="$BUILD" \
 	--prefix="${PREFIX}" \
@@ -498,12 +539,10 @@ $srcdir/configure \
 	GNATBIND_FOR_HOST="${GNATBIND}" \
 	GNATLINK_FOR_HOST="${GNATLINK}" \
 	--with-pkgversion="$REVISION" \
-	--disable-libvtv \
-	--disable-libmpx \
 	--disable-libcc1 \
 	--disable-werror \
 	--with-gxx-include-dir=${PREFIX}/${TARGET}/sys-root${gxxinclude} \
-	--with-default-libstdcxx-abi=gcc4-compatible \
+	$gcc4_compat \
 	--with-gcc-major-version-only \
 	--with-gcc --with-gnu-as --with-gnu-ld \
 	--with-system-zlib \
@@ -522,6 +561,7 @@ $srcdir/configure \
 	--disable-decimal-float \
 	--disable-nls \
 	$with_zstd \
+	$with_dw2_exceptions \
 	--with-libiconv-prefix="${PREFIX}" \
 	--with-libintl-prefix="${PREFIX}" \
 	$mpfr_config \
@@ -541,6 +581,12 @@ case $host in
 esac
 
 ${MAKE} $JOBS all-gcc || exit 1
+
+# The temporary compiler is very slow on Cygwin (it will be fast when fully installed)
+# The following hack can sometimes increase the compilation speed
+# by avoiding a shell wrapper for "as".
+rm gcc/as && $LN_S "$as" gcc/as
+
 ${MAKE} $JOBS all-target-libgcc || exit 1
 ${MAKE} $JOBS || exit 1
 
@@ -550,7 +596,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 	
 	cd "$MINT_BUILD_DIR"
 	${MAKE} DESTDIR="${INSTALL_DIR}" install >/dev/null || exit 1
-	
+
 	mkdir -p "${INSTALL_DIR}/${PREFIX}/${TARGET}/bin"
 	
 	cd "${INSTALL_DIR}/${PREFIX}/${TARGET}/bin"
@@ -640,9 +686,14 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		cygwin*) soext=.dll; LTO_PLUGIN=cyglto_plugin-0${soext}; MY_LTO_PLUGIN=cyglto_plugin_mintelf-${gcc_dir_version}${soext} ;;
 		mingw* | msys*) soext=.dll; LTO_PLUGIN=liblto_plugin-0${soext}; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}${soext} ;;
 		macos*) soext=.dylib; LTO_PLUGIN=liblto_plugin${soext}; MY_LTO_PLUGIN=liblto_plugin_mintelf-${gcc_dir_version}${soext} ;;
-		*) soext=.so; LTO_PLUGIN=liblto_plugin${soext}.0.0.0; MY_LTO_PLUGIN=liblto_plugin_mintelf${soext}.${gcc_dir_version} ;;
+		*) soext=.so; LTO_PLUGIN=liblto_plugin${soext}; MY_LTO_PLUGIN=liblto_plugin_mintelf${soext}.${gcc_dir_version} ;;
 	esac
 	
+	if test -f ${gccsubdir#/}/${LTO_PLUGIN}.0.0.0; then
+		rm -f ${gccsubdir#/}/${LTO_PLUGIN} ${gccsubdir#/}/${LTO_PLUGIN}.0
+		mv ${gccsubdir#/}/${LTO_PLUGIN}.0.0.0 ${gccsubdir#/}/${LTO_PLUGIN}
+	fi
+
 	for f in ${gccsubdir#/}/{cc1,cc1plus,cc1obj,cc1objplus,f951,d21,collect2,lto-wrapper,lto1,gnat1,gnat1why,gnat1sciln,go1,brig1,cc1gm2,g++-mapper-server}${BUILD_EXEEXT} \
 		${gccsubdir#/}/${LTO_PLUGIN} \
 		${gccsubdir#/}/plugin/gengtype${BUILD_EXEEXT} \
@@ -653,9 +704,9 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 
 	rmdir ${PREFIX#/}/include
 	
-	if test -f ${BUILD_LIBDIR#/}/gcc/${TARGET}/${gcc_dir_version}/${LTO_PLUGIN}; then
-		mkdir -p ${PREFIX#/}/lib/bfd-plugins
-		cd ${PREFIX#/}/lib/bfd-plugins
+	if test -f ${gccsubdir#/}/${LTO_PLUGIN}; then
+		mkdir -p ${BUILD_LIBDIR#/}/bfd-plugins
+		cd ${BUILD_LIBDIR#/}/bfd-plugins
 		rm -f ${MY_LTO_PLUGIN}
 		$LN_S ../../${BUILD_LIBDIR##*/}/gcc/${TARGET}/${gcc_dir_version}/${LTO_PLUGIN} ${MY_LTO_PLUGIN}
 		cd "${INSTALL_DIR}"
@@ -706,7 +757,8 @@ BINTARNAME=${PACKAGENAME}${VERSION}-mint${VERSIONPATCH}
 ${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-doc.tar.xz ${PREFIX#/}/share/info ${PREFIX#/}/share/man
 rm -rf ${PREFIX#/}/share/info
 rm -rf ${PREFIX#/}/share/man
-rm -rf ${PREFIX#/}/share/gcc*/python
+rm -rf ${PREFIX#/}/share/gcc*
+rm -rf ${PREFIX#/}/share/gdb
 
 #
 # create a separate archive for the fortran backend
@@ -765,7 +817,15 @@ fi
 #
 # create archive for all others
 #
-${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-bin-${host}.tar.xz ${PREFIX#/}
+if test $glibc_hack = false -a \( $host = linux32 -o $host = linux64 \); then
+	id=`lsb_release -i -s | tr '[[:upper:]]' '[[:lower:]]'`
+	release=`lsb_release -r -s`
+	# gcc-x.y.z-ubuntu-20.04-mint.tar.xz
+	TARNAME=${PACKAGENAME}${VERSION}-${id}-${release}-${TARGET##*-}
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}.tar.xz ${PREFIX#/}
+else
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-bin-${host}.tar.xz ${PREFIX#/}
+fi
 
 cd "${BUILD_DIR}"
 if test "$KEEP_PKGDIR" != yes; then
