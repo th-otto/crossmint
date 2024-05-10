@@ -1837,10 +1837,10 @@ index 00000000000..89538ccf0d6
 +#define UINTPTR_TYPE "long unsigned int"
 diff --git a/gcc/config/m68k/mint.h b/gcc/config/m68k/mint.h
 new file mode 100644
-index 00000000000..1195978f9c3
+index 00000000000..7030fc10f40
 --- /dev/null
 +++ b/gcc/config/m68k/mint.h
-@@ -0,0 +1,352 @@
+@@ -0,0 +1,361 @@
 +/* Definitions of target machine for GCC for Atari ST TOS/MiNT.
 +   Copyright (C) 1994-2023 Free Software Foundation, Inc.
 +
@@ -1902,6 +1902,9 @@ index 00000000000..1195978f9c3
 +    {						\
 +      builtin_define ("__MINT__");		\
 +      GCC_HAVE_INITFINI_ARRAY_SUPPORT \
++      /* The GNU C++ standard library requires this.  */ \
++      if (c_dialect_cxx ()) \
++       builtin_define ("_GNU_SOURCE"); \
 +      builtin_define_std ("atarist");		\
 +      builtin_assert ("machine=atari");		\
 +      builtin_assert ("system=mint");		\
@@ -1926,9 +1929,6 @@ index 00000000000..1195978f9c3
 +
 +#undef  LIB_SPEC
 +#define LIB_SPEC	"-lc"
-+
-+/* Every structure or union's size must be a multiple of 2 bytes.  */
-+#define STRUCTURE_SIZE_BOUNDARY 16
 +
 +/* The -g option generates stabs debug information.  */
 +#define DBX_DEBUGGING_INFO 1
@@ -2108,6 +2108,12 @@ index 00000000000..1195978f9c3
 +#undef  ENDFILE_SPEC
 +#define ENDFILE_SPEC "crtend.o%s"
 +
++/* In order for bitfields to work on a 68000, or with -mnobitfield, we must
++   define either PCC_BITFIELD_TYPE_MATTERS or STRUCTURE_SIZE_BOUNDARY.
++   Defining STRUCTURE_SIZE_BOUNDARY results in structure packing problems,
++   so we define PCC_BITFIELD_TYPE_MATTERS.  */
++#define PCC_BITFIELD_TYPE_MATTERS 1
++
 +#else
 +/* We can only do STABS.  */
 +#undef PREFERRED_DEBUGGING_TYPE
@@ -2122,6 +2128,9 @@ index 00000000000..1195978f9c3
 + 
 +#undef  ENDFILE_SPEC
 +#define ENDFILE_SPEC ""
++
++/* Every structure or union's size must be a multiple of 2 bytes.  */
++#define STRUCTURE_SIZE_BOUNDARY 16
 +
 +#endif
 +

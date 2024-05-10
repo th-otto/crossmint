@@ -4813,10 +4813,10 @@ index 00000000000..89538ccf0d6
 +#define UINTPTR_TYPE "long unsigned int"
 diff --git a/gcc/config/m68k/mint.h b/gcc/config/m68k/mint.h
 new file mode 100644
-index 00000000000..28856963e75
+index 00000000000..bcd97cd993a
 --- /dev/null
 +++ b/gcc/config/m68k/mint.h
-@@ -0,0 +1,373 @@
+@@ -0,0 +1,365 @@
 +/* Definitions of target machine for GCC for Atari ST TOS/MiNT.
 +   Copyright (C) 1994-2023 Free Software Foundation, Inc.
 +
@@ -5092,15 +5092,7 @@ index 00000000000..28856963e75
 +   define either PCC_BITFIELD_TYPE_MATTERS or STRUCTURE_SIZE_BOUNDARY.
 +   Defining STRUCTURE_SIZE_BOUNDARY results in structure packing problems,
 +   so we define PCC_BITFIELD_TYPE_MATTERS.  */
-+/*
-+ * However for compatibility reasons, we keep the previous setting.
-+ */
-+#if 0
 +#define PCC_BITFIELD_TYPE_MATTERS 1
-+#else
-+/* Every structure or union's size must be a multiple of 2 bytes.  */
-+#define STRUCTURE_SIZE_BOUNDARY 16
-+#endif
 +
 +#else
 +/* We can only do STABS.  */

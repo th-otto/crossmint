@@ -6951,10 +6951,10 @@ index 00000000000..89538ccf0d6
 +#define UINTPTR_TYPE "long unsigned int"
 diff --git a/gcc/config/m68k/mint.h b/gcc/config/m68k/mint.h
 new file mode 100644
-index 00000000000..2946132c4f1
+index 00000000000..0f8b61df596
 --- /dev/null
 +++ b/gcc/config/m68k/mint.h
-@@ -0,0 +1,336 @@
+@@ -0,0 +1,333 @@
 +/* Definitions of target machine for GCC for Atari ST TOS/MiNT.
 +   Copyright (C) 1994-2023 Free Software Foundation, Inc.
 +
@@ -6991,6 +6991,8 @@ index 00000000000..2946132c4f1
 +
 +#undef LOCAL_LABEL_PREFIX
 +#define LOCAL_LABEL_PREFIX "."
++
++/* How to start an assembler comment.  */
 +
 +#undef ASM_COMMENT_START
 +#define ASM_COMMENT_START "|"
@@ -7124,6 +7126,9 @@ index 00000000000..2946132c4f1
 +/* If we have a definition of INCOMING_RETURN_ADDR_RTX, assume that
 +   the rest of the DWARF 2 frame unwind support is also provided.
 +   
++   All configurations that don't use elf must be explicit about not using
++   dwarf unwind information.
++
 +   MiNT: DWARF 2 frame unwind is not supported by a.out-mint.
 +*/
 +#undef DWARF2_UNWIND_INFO
@@ -7222,7 +7227,7 @@ index 00000000000..2946132c4f1
 +
 +#undef  STARTFILE_SPEC
 +#define STARTFILE_SPEC	"%{pg|p|profile:gcrt0.o%s;:crt0.o%s} crtbegin.o%s"
-+ 
++
 +#undef  ENDFILE_SPEC
 +#define ENDFILE_SPEC "crtend.o%s"
 +
@@ -7230,15 +7235,7 @@ index 00000000000..2946132c4f1
 +   define either PCC_BITFIELD_TYPE_MATTERS or STRUCTURE_SIZE_BOUNDARY.
 +   Defining STRUCTURE_SIZE_BOUNDARY results in structure packing problems,
 +   so we define PCC_BITFIELD_TYPE_MATTERS.  */
-+/*
-+ * However for compatibility reasons, we keep the previous setting.
-+ */
-+#if 0
 +#define PCC_BITFIELD_TYPE_MATTERS 1
-+#else
-+/* Every structure or union's size must be a multiple of 2 bytes.  */
-+#define STRUCTURE_SIZE_BOUNDARY 16
-+#endif
 +
 +#else
 +/* We can only do STABS.  */
@@ -7251,7 +7248,7 @@ index 00000000000..2946132c4f1
 +
 +#undef  STARTFILE_SPEC
 +#define STARTFILE_SPEC	"%{pg|p|profile:gcrt0.o%s;:crt0.o%s}"
-+ 
++
 +#undef  ENDFILE_SPEC
 +#define ENDFILE_SPEC ""
 +

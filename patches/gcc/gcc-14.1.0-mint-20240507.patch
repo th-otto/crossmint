@@ -4776,10 +4776,10 @@ index 00000000000..89538ccf0d6
 +#define UINTPTR_TYPE "long unsigned int"
 diff --git a/gcc/config/m68k/mint.h b/gcc/config/m68k/mint.h
 new file mode 100644
-index 00000000000..a15631f639a
+index 00000000000..c995e9a73a1
 --- /dev/null
 +++ b/gcc/config/m68k/mint.h
-@@ -0,0 +1,340 @@
+@@ -0,0 +1,332 @@
 +/* Definitions of target machine for GCC for Atari ST TOS/MiNT.
 +   Copyright (C) 1994-2023 Free Software Foundation, Inc.
 +
@@ -5055,15 +5055,7 @@ index 00000000000..a15631f639a
 +   define either PCC_BITFIELD_TYPE_MATTERS or STRUCTURE_SIZE_BOUNDARY.
 +   Defining STRUCTURE_SIZE_BOUNDARY results in structure packing problems,
 +   so we define PCC_BITFIELD_TYPE_MATTERS.  */
-+/*
-+ * However for compatibility reasons, we keep the previous setting.
-+ */
-+#if 0
 +#define PCC_BITFIELD_TYPE_MATTERS 1
-+#else
-+/* Every structure or union's size must be a multiple of 2 bytes.  */
-+#define STRUCTURE_SIZE_BOUNDARY 16
-+#endif
 +
 +#else
 +/* We can only do STABS.  */
@@ -5217,7 +5209,7 @@ index 00000000000..fab05dc0e42
 +#define HOST_BIT_BUCKET "/dev/null"
 +#define HOST_BIT_BUCKET2 "nul:"
 diff --git a/gcc/configure b/gcc/configure
-index 23da7d55d62..5d97ed0028c 100755
+index 23da7d55d62..2ab46ec9fd9 100755
 --- a/gcc/configure
 +++ b/gcc/configure
 @@ -5505,7 +5505,7 @@ case "${target}" in
@@ -5229,6 +5221,15 @@ index 23da7d55d62..5d97ed0028c 100755
  	;;
      i[34567]86-*-interix[3-9]*)
  	# Interix 3.x gcc -fpic/-fPIC options generate broken code.
+@@ -7287,7 +7287,7 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+ 
+ strict_warn=
+ save_CXXFLAGS="$CXXFLAGS"
+-for real_option in -Wmissing-format-attribute -Wconditionally-supported -Woverloaded-virtual; do
++for real_option in -Wmissing-format-attribute -Woverloaded-virtual -Wno-array-bounds; do
+   # Do the check with the no- prefix removed since gcc silently
+   # accepts any -Wno-* option on purpose
+   case $real_option in
 @@ -10920,7 +10920,7 @@ else
     # Systems known to be in this category are Windows (all variants),
     # VMS, and Darwin.
@@ -12331,6 +12332,19 @@ index d34ef545bf0..29ee4ce5642 100644
  Minimum page size for warning purposes.
  
  -param=max-partial-antic-length=
+diff --git a/gcc/poly-int.h b/gcc/poly-int.h
+index e3f8d4df716..0d894856f02 100644
+--- a/gcc/poly-int.h
++++ b/gcc/poly-int.h
+@@ -370,7 +370,7 @@ template<> struct poly_int_fullness<true> { using type = poly_int_full; };
+ /* A class containing polynomial integers.  The polynomial has N coefficients
+    of type C, and N - 1 indeterminates.  */
+ template<unsigned int N, typename C>
+-struct poly_int
++class poly_int
+ {
+ public:
+   poly_int () = default;
 diff --git a/gcc/pretty-print.cc b/gcc/pretty-print.cc
 index eb59bf424b7..c68395424a6 100644
 --- a/gcc/pretty-print.cc
@@ -13342,6 +13356,77 @@ index c61df339e20..2a6b1016b7b 100644
  
    if (file->fd != -1)
      {
+diff --git a/libcpp/include/mkdeps.h b/libcpp/include/mkdeps.h
+index fd069125214..b62b9a19240 100644
+--- a/libcpp/include/mkdeps.h
++++ b/libcpp/include/mkdeps.h
+@@ -52,15 +52,15 @@ extern void deps_add_target (class mkdeps *, const char *, int);
+ extern void deps_add_default_target (class mkdeps *, const char *);
+ 
+ /* Adds a module target.  The module name and cmi name are copied.  */
+-extern void deps_add_module_target (struct mkdeps *, const char *module,
++extern void deps_add_module_target (class mkdeps *, const char *module,
+ 				    const char *cmi, bool is_header,
+ 				    bool is_exported);
+ 
+ /* Adds a module dependency.  The module name is copied.  */
+-extern void deps_add_module_dep (struct mkdeps *, const char *module);
++extern void deps_add_module_dep (class mkdeps *, const char *module);
+ 
+ /* Add a structured dependency target.  */
+-extern void fdeps_add_target (struct mkdeps *, const char *, bool);
++extern void fdeps_add_target (class mkdeps *, const char *, bool);
+ 
+ /* Add a dependency (appears on the right side of the colon) to the
+    deps list.  Dependencies will be printed in the order that they
+@@ -73,7 +73,7 @@ extern void deps_add_dep (class mkdeps *, const char *);
+ extern void deps_write (const cpp_reader *, FILE *, unsigned int);
+ 
+ /* Write out a deps buffer to a specified file in P1689R5 format.  */
+-extern void deps_write_p1689r5 (const struct mkdeps *, FILE *);
++extern void deps_write_p1689r5 (const class mkdeps *, FILE *);
+ 
+ /* Write out a deps buffer to a file, in a form that can be read back
+    with deps_restore.  Returns nonzero on error, in which case the
+diff --git a/libcpp/init.cc b/libcpp/init.cc
+index 54fc9236d38..adec448a7de 100644
+--- a/libcpp/init.cc
++++ b/libcpp/init.cc
+@@ -50,7 +50,7 @@ static void post_options (cpp_reader *);
+ __extension__ const uchar _cpp_trigraph_map[UCHAR_MAX + 1] = {
+ 
+ #define END };
+-#define s(p, v) [p] = v,
++#define s(p, v) [(uchar)(p)] = v,
+ 
+ #else
+ 
+@@ -59,7 +59,7 @@ __extension__ const uchar _cpp_trigraph_map[UCHAR_MAX + 1] = {
+  unsigned char *x = _cpp_trigraph_map;
+ 
+ #define END }
+-#define s(p, v) x[p] = v;
++#define s(p, v) x[(uchar)(p)] = v;
+ 
+ #endif
+ 
+diff --git a/libcpp/internal.h b/libcpp/internal.h
+index a20215c5709..11245b3506a 100644
+--- a/libcpp/internal.h
++++ b/libcpp/internal.h
+@@ -26,6 +26,12 @@ along with this program; see the file COPYING3.  If not see
+ #include "cpplib.h"
+ #include "rich-location.h"
+ 
++#ifdef __MINGW32__
++/* neither the configure script here nor in gcc checks whether it needs -liconv */
++#undef HAVE_ICONV
++#define HAVE_ICONV 0
++#endif
++
+ #if HAVE_ICONV
+ #include <iconv.h>
+ #else
 diff --git a/libcpp/macro.cc b/libcpp/macro.cc
 index 352eb2e4fd9..b06b6b3f14a 100644
 --- a/libcpp/macro.cc
@@ -28418,9 +28503,18 @@ index 46af75f978f..359f5fae4ef 100644
  	;;
  
 diff --git a/libiberty/configure b/libiberty/configure
-index 5c69fee56c1..7a7cef12c4a 100755
+index 5c69fee56c1..6d2970edc60 100755
 --- a/libiberty/configure
 +++ b/libiberty/configure
+@@ -4627,7 +4627,7 @@ ac_libiberty_warn_cflags=
+ save_CFLAGS="$CFLAGS"
+ for real_option in -W -Wall -Wwrite-strings -Wc++-compat \
+ 			  -Wstrict-prototypes \
+-			  -Wshadow=local; do
++			  ; do
+   # Do the check with the no- prefix removed since gcc silently
+   # accepts any -Wno-* option on purpose
+   case $real_option in
 @@ -5339,7 +5339,9 @@ case "${host}" in
  	;;
      i[34567]86-*-cygwin* | x86_64-*-cygwin*)
@@ -28469,9 +28563,18 @@ index 5c69fee56c1..7a7cef12c4a 100755
       *-*-msdos*)		pexecute=pex-msdos  ;;
       *)				pexecute=pex-unix   ;;
 diff --git a/libiberty/configure.ac b/libiberty/configure.ac
-index 0888e638896..3d3529fec25 100644
+index 0888e638896..bdd33c31d0b 100644
 --- a/libiberty/configure.ac
 +++ b/libiberty/configure.ac
+@@ -178,7 +178,7 @@ AC_PROG_CPP_WERROR
+ 
+ ACX_PROG_CC_WARNING_OPTS([-W -Wall -Wwrite-strings -Wc++-compat \
+ 			  -Wstrict-prototypes \
+-			  -Wshadow=local], [ac_libiberty_warn_cflags])
++			  ], [ac_libiberty_warn_cflags])
+ ACX_PROG_CC_WARNING_ALMOST_PEDANTIC([], [ac_libiberty_warn_cflags])
+ 
+ AC_PROG_CC_C_O
 @@ -503,7 +503,7 @@ if test -n "${with_target_subdir}"; then
    # Mingw provides and which ones we will be expected to provide.
  
