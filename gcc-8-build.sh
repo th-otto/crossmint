@@ -676,10 +676,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		test -f $i && mv $i ${INSTALL_DIR}${gccsubdir}
 		find . -name "$i" -delete
 	done
-	rmdir m*/*/*/* || :
-	rmdir m*/*/* || :
-	rmdir m*/* || :
-	rmdir m* || :
+	find . -depth -type d -empty | xargs rmdir -v
 	cd "${INSTALL_DIR}"
 
 	case $host in
@@ -804,8 +801,7 @@ fi
 # create a separate archive for the modula-2 backend
 #
 if $with_m2; then
-	m2=
-	test -d ${gccsubdir#/}/m2 && m2="$m2 "${gccsubdir#/}/m2
+	m2=`find ${gccsubdir#/} -type d -name m2`
 	m2="$m2 "`find ${gccsubdir#/} -name "libm2*"`
 	m2="$m2 "`find ${gccsubdir#/} -name "cc1gm2*"`
 	test -f ${gccsubdir#/}/plugin/m2rte${soext} && m2="$m2 ${gccsubdir#/}/plugin/m2rte${soext}"

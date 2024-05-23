@@ -157,12 +157,21 @@ esac
 
 
 #
+# whether to include the go backend
+#
+with_go=false
+
+#
 # whether to use dwarf2 exceptions instead of sjlj.
 # Only works for elf toolchains.
 #
 case $TARGET in
 *-*-*elf)
 	with_dw2_exceptions=--disable-sjlj-exceptions
+	;;
+*)
+	# go needs named sections and only works with elf
+	with_go=false
 	;;
 esac
 
@@ -335,6 +344,7 @@ $with_fortran && languages="$languages,fortran"
 $with_ada && languages="$languages,ada"
 $with_D && { languages="$languages,d"; enable_libphobos=; } # --enable-libphobos does not work because of missing swapcontext() in mintlib
 $with_m2 && languages="$languages,m2"
+$with_go && languages="$languages,go"
 ranlib=ranlib
 STRIP=${STRIP-strip -p}
 
@@ -393,10 +403,10 @@ fi
 if test "$TARGET" = m68k-atari-mintelf; then
   # new PRG+ELF format requires binutils >= 2.41
   asversion=`$as --version | head -1 | sed -e 's/^.* \([.0-9]*\)$/\1/'`
-  asversion=${asversion%.0}
-  asversion=${asversion//./}
-  if test "$asversion" -lt 241; then
-	echo "cross-binutils >= 2.41 required" >&2
+  version=${asversion%.0}
+  version=${asversion//./}
+  if test "$version" -lt 241; then
+	echo "cross-binutils >= 2.41 required (found $asversion as $as)" >&2
 	exit 1
   fi
 fi
@@ -561,7 +571,6 @@ $srcdir/configure \
 	--without-static-standard-libraries \
 	--without-stage1-ldflags \
 	--disable-libgomp \
-	--without-libatomic \
 	--without-newlib \
 	--disable-libstdcxx-pch \
 	--disable-threads \
@@ -689,10 +698,7 @@ for INSTALL_DIR in "${PKG_DIR}" "${THISPKG_DIR}"; do
 		test -f $i && mv $i ${INSTALL_DIR}${gccsubdir}
 		find . -name "$i" -delete
 	done
-	rmdir m*/*/*/* || :
-	rmdir m*/*/* || :
-	rmdir m*/* || :
-	rmdir m* || :
+	find . -depth -type d -empty | xargs rmdir -v
 	cd "${INSTALL_DIR}"
 
 	case $host in
@@ -824,6 +830,21 @@ if $with_m2; then
 	m2="$m2 "${PREFIX#/}/bin/${TARGET}-gm2*
 	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-m2-${host}.tar.xz $m2 || exit 1
 	rm -rf $m2
+fi
+
+#
+# create a separate archive for the go backend
+#
+if $with_go; then
+	go=
+	go="$go "`find ${gccsubdir#/} -name "libgo*.a"`
+	go="$go "`find ${gccsubdir#/} -name "libffi*.a"`
+	go="$go "`find ${gccsubdir#/} -name "libatomic*.a"`
+	go="$go "`find ${gccsubdir#/} -name "go1*"`
+	go="$go "${PREFIX#/}/bin/${TARGET}-go*
+	go="$go "${PREFIX#/}/bin/${TARGET}-gccgo*
+	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-go-${host}.tar.xz $go || exit 1
+	rm -rf $go
 fi
 
 #
