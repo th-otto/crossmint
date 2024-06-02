@@ -13,8 +13,8 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
-VERSION=-13.2.0
-VERSIONPATCH=-20240501
+VERSION=-13.3.0
+VERSIONPATCH=-20240530
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -393,10 +393,10 @@ fi
 if test "$TARGET" = m68k-atari-mintelf; then
   # new PRG+ELF format requires binutils >= 2.41
   asversion=`$as --version | head -1 | sed -e 's/^.* \([.0-9]*\)$/\1/'`
-  asversion=${asversion%.0}
-  asversion=${asversion//./}
-  if test "$asversion" -lt 241; then
-	echo "cross-binutils >= 2.41 required" >&2
+  version=${asversion%.0}
+  version=${asversion//./}
+  if test "$version" -lt 241; then
+	echo "cross-binutils >= 2.41 required (found $asversion as $as)" >&2
 	exit 1
   fi
 fi
@@ -405,6 +405,9 @@ mpfr_config=
 
 unset GLIBC_SO
 with_zstd=
+
+# -include must not be passed to gdc
+GDCFLAGS="$CFLAGS_FOR_BUILD"
 
 case $host in
 	macos*)
@@ -547,6 +550,7 @@ $srcdir/configure \
 	GNATMAKE_FOR_HOST="${GNATMAKE}" \
 	GNATBIND_FOR_HOST="${GNATBIND}" \
 	GNATLINK_FOR_HOST="${GNATLINK}" \
+	GDCFLAGS="${GDCFLAGS}" \
 	--with-pkgversion="$REVISION" \
 	--disable-libcc1 \
 	--disable-werror \

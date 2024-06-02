@@ -40,8 +40,8 @@ jobs:
             version: 12.3.0
             source_archive: https://ftp.gnu.org/gnu/gcc/gcc-12.3.0/gcc-12.3.0.tar.xz
           - project: gcc-13
-            version: 13.2.0
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz
+            version: 13.3.0
+            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-13.3.0/gcc-13.3.0.tar.xz
           - project: gcc-14
             version: 14.1.0
             source_archive: https://ftp.gnu.org/gnu/gcc/gcc-14.1.0/gcc-14.1.0.tar.xz

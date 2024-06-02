@@ -14,7 +14,7 @@ scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
 VERSION=-14.1.0
-VERSIONPATCH=-20240507
+VERSIONPATCH=-20240531
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -416,6 +416,9 @@ mpfr_config=
 unset GLIBC_SO
 with_zstd=
 
+# -include must not be passed to gdc
+GDCFLAGS="$CFLAGS_FOR_BUILD"
+
 case $host in
 	macos*)
 		GCC=/usr/bin/clang
@@ -559,6 +562,7 @@ $srcdir/configure \
 	GNATMAKE_FOR_HOST="${GNATMAKE}" \
 	GNATBIND_FOR_HOST="${GNATBIND}" \
 	GNATLINK_FOR_HOST="${GNATLINK}" \
+	GDCFLAGS="${GDCFLAGS}" \
 	--with-pkgversion="$REVISION" \
 	--disable-libcc1 \
 	--disable-werror \
@@ -588,9 +592,11 @@ $srcdir/configure \
 	--with-libintl-prefix="${PREFIX}" \
 	$mpfr_config \
 	$build_time_tools \
+	--enable-checking=misc \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root" \
 	--enable-languages="$languages" || fail "gcc"
 
+#	--enable-checking=yes,types,extra,misc
 
 case $host in
 	linux32)

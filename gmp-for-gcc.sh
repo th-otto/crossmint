@@ -1,11 +1,12 @@
 #
 # Now, for darwin, build gmp etc.
 #
-gmp='gmp-6.2.1.tar.bz2'
-mpfr='mpfr-3.1.4.tar.bz2'
-mpc='mpc-1.0.3.tar.gz'
-isl='isl-0.18.tar.bz2'
 base_url='https://gcc.gnu.org/pub/gcc/infrastructure/'
+
+gmp="https://gmplib.org/download/gmp/gmp-6.3.0.tar.xz"
+mpfr="https://www.mpfr.org/mpfr-current/mpfr-4.2.1.tar.xz"
+mpc="https://ftp.gnu.org/gnu/mpc/mpc-1.3.1.tar.gz"
+isl="${base_url}/isl-0.18.tar.bz2"
 
 if test $host = macos; then
 	mkdir -p "$CROSSTOOL_DIR"
@@ -14,15 +15,22 @@ if test $host = macos; then
 		cd "$CROSSTOOL_DIR" || exit 1
 		mkdir -p lib include
 		archive=$gmp
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
+		basename=${archive##*/}
+		package="${basename%.tar*}"
 		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
+		if test -f "${scriptdir}/3rdparty/${basename}"; then
+			echo "unpacking ${basename}"
+			$TAR xf "${scriptdir}/3rdparty/${basename}" || exit 1
+		else
+			echo "fetching ${archive}"
+			wget -nv "${archive}" || exit 1
+			$TAR xf "${basename}" || exit 1
+		fi
 		cd "${package}" || exit 1
 
 		patch -p1 < "$BUILD_DIR/patches/gmp/gmp-universal.patch" || exit 1
-		patch -p1 < "$BUILD_DIR/patches/gmp/gmp-6.2.1-CVE-2021-43618.patch" || exit 1
+		# already applied in 6.3.0
+		# patch -p1 < "$BUILD_DIR/patches/gmp/gmp-6.2.1-CVE-2021-43618.patch" || exit 1
 		# following patch was taken from SuSE, but failes to compile with clang
 		# patch -p1 < "$BUILD_DIR/patches/gmp/gmp-6.2.1-arm64-invert_limb.patch" || exit 1
 		
@@ -73,11 +81,17 @@ if test $host = macos; then
 		cd "$CROSSTOOL_DIR" || exit 1
 		mkdir -p lib include
 		archive=$mpfr
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
+		basename=${archive##*/}
+		package="${basename%.tar*}"
 		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
+		if test -f "${scriptdir}/3rdparty/${basename}"; then
+			echo "unpacking ${basename}"
+			$TAR xf "${scriptdir}/3rdparty/${basename}" || exit 1
+		else
+			echo "fetching ${archive}"
+			wget -nv "${archive}" || exit 1
+			$TAR xf "${basename}" || exit 1
+		fi
 		cd "${package}" || exit 1
 
 		rm -f include/mpfr.h include/mpf2mpfr.h
@@ -122,11 +136,17 @@ if test $host = macos; then
 		cd "$CROSSTOOL_DIR" || exit 1
 		mkdir -p lib include
 		archive=$mpc
-		package="${archive%.tar*}"
-		echo "fetching ${archive}"
-		wget -nv "${base_url}${archive}" || exit 1
+		basename=${archive##*/}
+		package="${basename%.tar*}"
 		rm -rf "${package}"
-		$TAR xf "$archive" || exit 1
+		if test -f "${scriptdir}/3rdparty/${basename}"; then
+			echo "unpacking ${basename}"
+			$TAR xf "${scriptdir}/3rdparty/${basename}" || exit 1
+		else
+			echo "fetching ${archive}"
+			wget -nv "${archive}" || exit 1
+			$TAR xf "${basename}" || exit 1
+		fi
 		cd "${package}" || exit 1
 
 		rm -f include/mpc.h

@@ -393,10 +393,10 @@ fi
 if test "$TARGET" = m68k-atari-mintelf; then
   # new PRG+ELF format requires binutils >= 2.41
   asversion=`$as --version | head -1 | sed -e 's/^.* \([.0-9]*\)$/\1/'`
-  asversion=${asversion%.0}
-  asversion=${asversion//./}
-  if test "$asversion" -lt 241; then
-	echo "cross-binutils >= 2.41 required" >&2
+  version=${asversion%.0}
+  version=${asversion//./}
+  if test "$version" -lt 241; then
+	echo "cross-binutils >= 2.41 required (found $asversion as $as)" >&2
 	exit 1
   fi
 fi
@@ -405,6 +405,9 @@ mpfr_config=
 
 unset GLIBC_SO
 with_zstd=
+
+# -include must not be passed to gdc
+GDCFLAGS="$CFLAGS_FOR_BUILD"
 
 case $host in
 	macos*)
@@ -520,6 +523,15 @@ if test $gcc_major_version -lt 13; then
 	gcc4_compat=--with-default-libstdcxx-abi=gcc4-compatible
 fi
 
+#
+# gcc 13 and above need support for a zoneinfo database
+# in std::chrono
+#
+zoneinfo=
+if test $gcc_major_version -ge 13; then
+	zoneinfo=--with-libstdcxx-zoneinfo=/usr/share/zoneinfo
+fi
+
 $srcdir/configure \
 	--target="${TARGET}" --build="$BUILD" \
 	--prefix="${PREFIX}" \
@@ -538,11 +550,13 @@ $srcdir/configure \
 	GNATMAKE_FOR_HOST="${GNATMAKE}" \
 	GNATBIND_FOR_HOST="${GNATBIND}" \
 	GNATLINK_FOR_HOST="${GNATLINK}" \
+	GDCFLAGS="${GDCFLAGS}" \
 	--with-pkgversion="$REVISION" \
 	--disable-libcc1 \
 	--disable-werror \
 	--with-gxx-include-dir=${PREFIX}/${TARGET}/sys-root${gxxinclude} \
 	$gcc4_compat \
+	$zoneinfo \
 	--with-gcc-major-version-only \
 	--with-gcc --with-gnu-as --with-gnu-ld \
 	--with-system-zlib \
@@ -818,7 +832,7 @@ if test $glibc_hack = false -a \( $host = linux32 -o $host = linux64 \); then
 	release=`lsb_release -r -s`
 	# gcc-x.y.z-ubuntu-20.04-mint.tar.xz
 	TARNAME=${PACKAGENAME}${VERSION}-${id}-${release}-${TARGET##*-}
-	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}.tar.xz ${PREFIX#/}
+	${TAR} ${TAR_OPTS} -jcf ${DIST_DIR}/${TARNAME}.tar.bz2 ${PREFIX#/}
 else
 	${TAR} ${TAR_OPTS} -Jcf ${DIST_DIR}/${TARNAME}-bin-${host}.tar.xz ${PREFIX#/}
 fi
