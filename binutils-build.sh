@@ -14,8 +14,8 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=binutils
-VERSION=-2.42
-VERSIONPATCH=-20240309
+VERSION=-2.43
+VERSIONPATCH=-20240808
 REVISION="GNU Binutils for MiNT ${VERSIONPATCH#-}"
 
 TARGET=${1:-m68k-atari-mint}
