@@ -13,8 +13,8 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=gcc
-VERSION=-14.1.0
-VERSIONPATCH=-20240531
+VERSION=-14.2.0
+VERSIONPATCH=-20240809
 REVISION="MiNT ${VERSIONPATCH#-}"
 
 #
@@ -592,7 +592,6 @@ $srcdir/configure \
 	--with-libintl-prefix="${PREFIX}" \
 	$mpfr_config \
 	$build_time_tools \
-	--enable-checking=misc \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root" \
 	--enable-languages="$languages" || fail "gcc"
 

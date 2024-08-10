@@ -43,8 +43,8 @@ jobs:
             version: 13.3.0
             source_archive: https://ftp.gnu.org/gnu/gcc/gcc-13.3.0/gcc-13.3.0.tar.xz
           - project: gcc-14
-            version: 14.1.0
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-14.1.0/gcc-14.1.0.tar.xz
+            version: 14.2.0
+            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-14.2.0/gcc-14.2.0.tar.xz
           - project: mintbin
             version: 0.4
             source_archive: https://tho-otto.de/download/mint/mintbin-0.4.tar.xz
