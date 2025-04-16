@@ -16,8 +16,8 @@ jobs:
         target: [ m68k-atari-mint, m68k-atari-mintelf ]
         include:
           - project: binutils
-            version: 2.43
-            source_archive: https://ftp.gnu.org/gnu/binutils/binutils-2.43.tar.xz
+            version: 2.44
+            source_archive: https://ftp.gnu.org/gnu/binutils/binutils-2.44.tar.xz
           - project: gcc-464
             version: 4.6.4
             source_archive: https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-4.6.4.tar.bz2
