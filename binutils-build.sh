@@ -14,8 +14,8 @@ scriptdir=${0%/*}
 scriptdir=`cd "${scriptdir}"; pwd`
 
 PACKAGENAME=binutils
-VERSION=-2.44
-VERSIONPATCH=-20250415
+VERSION=-2.45
+VERSIONPATCH=-20250812
 REVISION="GNU Binutils for MiNT ${VERSIONPATCH#-}"
 
 TARGET=${1:-m68k-atari-mint}
@@ -258,6 +258,7 @@ case $host in
 		if $glibc_hack; then
 			export GLIBC_SO="$srcdir/bfd/glibc.so"
 		fi
+		with_source_highlight="--enable-source-highlight"
 		;;
 	mingw*)
 		build_gdb=false
@@ -318,6 +319,7 @@ $srcdir/configure \
 	--disable-nls \
 	--with-system-zlib \
 	$with_gmp $gdb \
+	$with_source_highlight \
 	--disable-bracketed-paste-default \
 	--with-sysroot="${PREFIX}/${TARGET}/sys-root"
 
