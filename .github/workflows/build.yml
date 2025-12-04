@@ -12,30 +12,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [ binutils, gcc-464, gcc-7, gcc-8, gcc-9, gcc-10, gcc-11, gcc-12, gcc-13, gcc-14, gcc-15, mintbin ]
+        project: [ binutils, gcc-12, gcc-13, gcc-14, gcc-15, mintbin ]
         target: [ m68k-atari-mint, m68k-atari-mintelf ]
         include:
           - project: binutils
             version: 2.45
             source_archive: https://ftp.gnu.org/gnu/binutils/binutils-2.45.tar.xz
-          - project: gcc-464
-            version: 4.6.4
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-4.6.4/gcc-4.6.4.tar.bz2
-          - project: gcc-7
-            version: 7.5.0
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-7.5.0/gcc-7.5.0.tar.xz
-          - project: gcc-8
-            version: 8.5.0
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-8.5.0/gcc-8.5.0.tar.xz
-          - project: gcc-9
-            version: 9.5.0
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-9.5.0/gcc-9.5.0.tar.xz
-          - project: gcc-10
-            version: 10.5.0
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-10.5.0/gcc-10.5.0.tar.xz
-          - project: gcc-11
-            version: 11.5.0
-            source_archive: https://ftp.gnu.org/gnu/gcc/gcc-11.5.0/gcc-11.5.0.tar.xz
           - project: gcc-12
             version: 12.4.0
             source_archive: https://ftp.gnu.org/gnu/gcc/gcc-12.4.0/gcc-12.4.0.tar.xz
@@ -63,7 +45,16 @@ jobs:
       - name: build
         env:
           BUILD_ARM64: yes
-        run: ./.scripts/build-wrap.sh ${{ matrix.project }} ${{ matrix.target }}
+        run: |
+          ./${{ matrix.project }}-build.sh ${{ matrix.target }}
+          mkdir -p logs
+          find . -name config.log | xargs tar cvfJ logs/${{ matrix.project }}-${{ matrix.target }}-logs.tar.xz
+      - name: Store logs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.project }}-${{ matrix.target }}-logs.tar.xz
+          path: logs/
+          retention-days: 1
       - name: deploy
         if: ${{ github.event_name == 'push' }}
         env:
